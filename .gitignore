@@ -1,0 +1,104 @@
+
+# --------------------------------------------------------------------
+# OS Specific
+# --------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --------------------------------------------------------------------
+# Node / Frontend
+# --------------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --------------------------------------------------------------------
+# Java / Maven
+# --------------------------------------------------------------------
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Maven wrapper
+!.mvn/wrapper/maven-wrapper.jar
+
+# --------------------------------------------------------------------
+# IDEs
+# --------------------------------------------------------------------
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# Generic IDE / Editor
+*.swp
+*~
+*.bak
+
+# --------------------------------------------------------------------
+# Logs & Temp
+# --------------------------------------------------------------------
+logs/
+*.log
+tmp/
+temp/
+
+# --------------------------------------------------------------------
+# Secrets & Environment
+# --------------------------------------------------------------------
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+
+# --------------------------------------------------------------------
+# Miscellaneous
+# --------------------------------------------------------------------
+.file-manifest
+pids
+packages
+.spark-workbench-id
