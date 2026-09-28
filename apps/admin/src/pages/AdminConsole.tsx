@@ -214,10 +214,16 @@ function TenantDetail() {
     const qc = useQueryClient()
     const support = isSupport()
     const { data } = useQuery({ queryKey: ['admin-tenant', id], queryFn: async () => (await api.get(`${base()}/tenants/${id}`)).data })
+    const [backfill, setBackfill] = useState<string | null>(null)
     if (!data) return null
     const act = async (action: string) => {
         await api.post(`/admin/tenants/${id}/${action}`)
         qc.invalidateQueries({ queryKey: ['admin-tenant', id] })
+    }
+    const runBackfill = async () => {
+        const r = await api.post(`/admin/tenants/${id}/backfill-usernames`)
+        const d = r.data
+        setBackfill(`${d.assigned} assigned, ${d.flagged} flagged for review (${d.scanned} scanned)`)
     }
     return (
         <div>
@@ -230,6 +236,10 @@ function TenantDetail() {
                     className="rounded-lg border border-slate-300 text-slate-700 px-3 py-1.5 text-sm">Offboard</button>
                 {data.status === 'PROVISION_FAILED' &&
                     <button onClick={() => act('retry-provisioning')} className="rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-sm">Retry provisioning</button>}
+                <button onClick={runBackfill}
+                    className="rounded-lg border border-slate-300 text-slate-700 px-3 py-1.5 text-sm"
+                    title="Assign canonical name@slug usernames to users without one">
+                    Backfill usernames</button>
                 {data.status === 'OFFBOARDED' &&
                     <button onClick={async () => {
                             const r = await api.get(`/admin/tenants/${id}/export`, { responseType: 'blob' })
@@ -239,6 +249,7 @@ function TenantDetail() {
                         }}
                         className="rounded-lg border border-indigo-300 text-indigo-700 px-3 py-1.5 text-sm">Download export</button>}
             </div>}
+            {backfill && <p className="mt-2 text-sm text-slate-600">Username backfill: {backfill}</p>}
             <div className="mt-6 grid md:grid-cols-2 gap-4">
                 <div className={card}>
                     <h2 className="font-semibold text-slate-900">Usage</h2>

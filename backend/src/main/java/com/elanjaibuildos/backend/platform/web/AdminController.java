@@ -37,6 +37,7 @@ public class AdminController {
     private final TenantLifecycleService lifecycle;
     private final UsageService usageService;
     private final ExportService exportService;
+    private final UsernameBackfillService usernameBackfill;
 
     @Value("${app.storage.root:./data/files}")
     private String storageRoot;
@@ -46,13 +47,15 @@ public class AdminController {
                            InvoiceRepository invoices,
                            PlatformAuditLogRepository auditRepo, PlatformSettingRepository settings,
                            SignupService signupService, TenantLifecycleService lifecycle,
-                           UsageService usageService, ExportService exportService) {
+                           UsageService usageService, ExportService exportService,
+                           UsernameBackfillService usernameBackfill) {
         this.tenants = tenants; this.signups = signups; this.plans = plans;
         this.subscriptions = subscriptions; this.invoices = invoices;
         this.auditRepo = auditRepo; this.settings = settings;
         this.signupService = signupService; this.lifecycle = lifecycle;
         this.usageService = usageService;
         this.exportService = exportService;
+        this.usernameBackfill = usernameBackfill;
     }
 
     // ---------- Dashboard ----------
@@ -168,6 +171,23 @@ public class AdminController {
         Tenant t = tenants.findById(id).orElseThrow();
         signupService.resumeProvisioning(t, actorId(auth));
         return Map.of("status", t.getStatus().name());
+    }
+
+    // ---------- Username backfill (02-tenancy/01 Phase B) ----------
+
+    /** Backfill canonical <local>@<slug> usernames for one tenant. Idempotent. */
+    @PostMapping("/tenants/{id}/backfill-usernames")
+    public Map<String, Object> backfillUsernames(@PathVariable UUID id, Authentication auth) {
+        Tenant t = tenants.findById(id).orElseThrow();
+        var report = usernameBackfill.backfillTenant(t.getSlug());
+        return UsernameBackfillService.toMap(report);
+    }
+
+    /** Backfill all provisioned tenants; per-tenant failures are isolated in the report. */
+    @PostMapping("/usernames/backfill-all")
+    public List<Map<String, Object>> backfillAllUsernames() {
+        return usernameBackfill.backfillAll().stream()
+                .map(UsernameBackfillService::toMap).toList();
     }
 
     // ---------- Approvals ----------
