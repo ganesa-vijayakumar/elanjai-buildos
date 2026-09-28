@@ -1,6 +1,8 @@
 package com.elanjaibuildos.backend.common.multitenancy;
 
 import org.flywaydb.core.Flyway;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +18,7 @@ import java.sql.Statement;
 @Component
 public class TenantSchemaProvisioner {
 
+    private static final Logger log = LoggerFactory.getLogger(TenantSchemaProvisioner.class);
     private static final String TENANT_MIGRATION_LOCATION = "classpath:db/migration-tenant";
     private final DataSource dataSource;
     private final Environment env;
@@ -59,6 +62,10 @@ public class TenantSchemaProvisioner {
     /** Run pending tenant migrations on the schema (catch-up on boot / re-provision). */
     public void migrate(String slug) {
         String schema = schemaFor(slug);
+        if (!schemaExists(schema)) {
+            log.info("Skipping migrate for {} — schema {} does not exist (purged or never provisioned)", slug, schema);
+            return;
+        }
         Flyway flyway = Flyway.configure()
                 .dataSource(dataSource)
                 .locations(TENANT_MIGRATION_LOCATION)
@@ -85,7 +92,8 @@ public class TenantSchemaProvisioner {
         int migrated = 0;
         try (Connection c = dataSource.getConnection();
              Statement s = c.createStatement();
-             ResultSet rs = s.executeQuery("SELECT slug FROM tenants WHERE schema_name IS NOT NULL")) {
+             ResultSet rs = s.executeQuery(
+                     "SELECT slug FROM tenants WHERE schema_name IS NOT NULL AND status <> 'OFFBOARDED'")) {
             java.util.List<String> slugs = new java.util.ArrayList<>();
             while (rs.next()) slugs.add(rs.getString(1));
             for (String slug : slugs) { migrate(slug); migrated++; }

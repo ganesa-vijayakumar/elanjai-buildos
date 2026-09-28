@@ -33,8 +33,11 @@ public class Collection {
     @Column(nullable = false)
     private BigDecimal amount;
 
-    @Enumerated(EnumType.STRING)
-    private ConstructionStage stage;
+    /** Optional link to a site_stages row */
+    private UUID stageId;
+
+    /** Stage name (denormalized — stages are tenant-editable) */
+    private String stage;
 
     @Enumerated(EnumType.STRING)
     private PaymentMode paymentMode;
@@ -44,6 +47,18 @@ public class Collection {
 
     @Column(nullable = false)
     private LocalDate receivedDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private ExpenseApprovalStatus approvalStatus = ExpenseApprovalStatus.APPROVED;
+
+    @ManyToOne
+    @JoinColumn(name = "approved_by")
+    private User approvedBy;
+
+    private LocalDateTime approvedAt;
+    private String rejectionReason;
 
     @ManyToOne
     @JoinColumn(name = "created_by")

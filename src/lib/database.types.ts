@@ -30,7 +30,7 @@ export type PackageName = 'economy' | 'standard' | 'premium' | 'luxury';
 
 // Stage breakdown for quotations
 export interface StageBreakdown {
-    stage: ConstructionStage;
+    stage: string; // identifier — from tenant stage_templates or legacy ConstructionStage
     label: string;
     percentage: number;
     amount: number;
@@ -104,7 +104,7 @@ export interface Database {
                     rate_per_sqft: number | null;
                     package_name: PackageName | null;
                     total_value: number | null;
-                    current_stage: ConstructionStage | null;
+                    current_stage: string | null;
                     status: SiteStatus;
                     start_date: string | null;
                     expected_completion: string | null;
@@ -125,7 +125,7 @@ export interface Database {
                     rate_per_sqft?: number | null;
                     package_name?: PackageName | null;
                     total_value?: number | null;
-                    current_stage?: ConstructionStage | null;
+                    current_stage?: string | null;
                     status?: SiteStatus;
                     start_date?: string | null;
                     expected_completion?: string | null;
@@ -146,7 +146,7 @@ export interface Database {
                     rate_per_sqft?: number | null;
                     package_name?: PackageName | null;
                     total_value?: number | null;
-                    current_stage?: ConstructionStage | null;
+                    current_stage?: string | null;
                     status?: SiteStatus;
                     start_date?: string | null;
                     expected_completion?: string | null;
@@ -181,11 +181,13 @@ export interface Database {
                     id: string;
                     site_id: string;
                     amount: number;
-                    stage: ConstructionStage | null;
+                    stage_id: string | null;
+                    stage: string | null;
                     payment_mode: PaymentMode | null;
                     reference_number: string | null;
                     notes: string | null;
                     received_date: string;
+                    approval_status: ExpenseApprovalStatus | null;
                     created_by: string | null;
                     created_at: string;
                 };
@@ -193,11 +195,13 @@ export interface Database {
                     id?: string;
                     site_id: string;
                     amount: number;
-                    stage?: ConstructionStage | null;
+                    stage_id?: string | null;
+                    stage?: string | null;
                     payment_mode?: PaymentMode | null;
                     reference_number?: string | null;
                     notes?: string | null;
                     received_date: string;
+                    approval_status?: ExpenseApprovalStatus | null;
                     created_by?: string | null;
                     created_at?: string;
                 };
@@ -205,11 +209,13 @@ export interface Database {
                     id?: string;
                     site_id?: string;
                     amount?: number;
-                    stage?: ConstructionStage | null;
+                    stage_id?: string | null;
+                    stage?: string | null;
                     payment_mode?: PaymentMode | null;
                     reference_number?: string | null;
                     notes?: string | null;
                     received_date?: string;
+                    approval_status?: ExpenseApprovalStatus | null;
                     created_by?: string | null;
                     created_at?: string;
                 };

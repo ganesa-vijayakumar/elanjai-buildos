@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useUsers } from '../../hooks/useUsers'
+import { useSites } from '../../hooks/useSites'
+import api from '../../lib/api'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
@@ -11,78 +13,66 @@ import { UsersThree, UserPlus, Phone, MapPin, EnvelopeSimple, Key, CopySimple } 
 import { Badge } from '../ui/badge'
 
 export function UserManagementMVP() {
-    const { clients, siteManagers, loading, createUser, updateUser } = useUsers()
-    const [showCreateDialog, setShowCreateDialog] = useState(false)
-    const [creating, setCreating] = useState(false)
-    
-    const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
-    
+    const { clients, siteManagers, loading, updateUser } = useUsers()
+    const { sites } = useSites()
+    const [showInviteDialog, setShowInviteDialog] = useState(false)
+    const [inviting, setInviting] = useState(false)
+    const [invites, setInvites] = useState<any[]>([])
+
     // Reset password state
     const [resetUser, setResetUser] = useState<any | null>(null)
     const [resetPassword, setResetPassword] = useState('')
     const [resetting, setResetting] = useState(false)
-    
-    // Form state
-    const [form, setForm] = useState({
-        full_name: '',
-        phone: '',
+
+    const [inviteForm, setInviteForm] = useState({
         email: '',
-        location: '',
-        role: 'CLIENT' as 'CLIENT' | 'SITE_MANAGER',
-        password: '',
+        role: 'SITE_MANAGER' as 'ADMIN' | 'SITE_MANAGER' | 'CLIENT',
+        site_id: '',
     })
 
-    const resetForm = () => {
-        setForm({
-            full_name: '',
-            phone: '',
-            email: '',
-            location: '',
-            role: 'CLIENT',
-            password: '',
-        })
+    const fetchInvites = async () => {
+        try {
+            const { data } = await api.get('/users/invites')
+            setInvites(data)
+        } catch { setInvites([]) }
     }
 
-    const handleCreateUser = async () => {
-        if (!form.full_name || !form.phone || !form.email) {
-            toast.error('Name, Phone, and Email are mandatory')
-            return
-        }
+    useEffect(() => { fetchInvites() }, [])
 
-        // Basic validations
-        const phoneRegex = /^\+?[0-9]{10,12}$/
-        if (!phoneRegex.test(form.phone.replace(/\s+/g, ''))) {
-            toast.error('Please enter a valid phone number (10-12 digits)')
-            return
-        }
-
+    const handleInvite = async () => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(form.email)) {
+        if (!emailRegex.test(inviteForm.email)) {
             toast.error('Please enter a valid email address')
             return
         }
-
-        setCreating(true)
-        const { error, temporaryPassword } = await createUser({
-            role: form.role,
-            full_name: form.full_name,
-            phone: form.phone,
-            email: form.email,
-            location: form.location,
-            password: form.password || undefined
-        })
-        setCreating(false)
-
-        if (error) {
-            toast.error('Failed to create user: ' + error)
-        } else {
-            toast.success('User created successfully')
-            setShowCreateDialog(false)
-            resetForm()
-            if (temporaryPassword) {
-                setGeneratedPassword(temporaryPassword)
-            }
+        if (inviteForm.role === 'CLIENT' && !inviteForm.site_id) {
+            toast.error('Pick the client\'s site')
+            return
         }
+        setInviting(true)
+        try {
+            await api.post('/users/invite', {
+                email: inviteForm.email,
+                role: inviteForm.role,
+                siteId: inviteForm.role === 'CLIENT' ? inviteForm.site_id : null,
+            })
+            toast.success(`Invite sent to ${inviteForm.email}`)
+            setShowInviteDialog(false)
+            setInviteForm({ email: '', role: 'SITE_MANAGER', site_id: '' })
+            fetchInvites()
+        } catch (e: any) {
+            toast.error(e.response?.data?.message || 'Failed to send invite')
+        } finally {
+            setInviting(false)
+        }
+    }
+
+    const handleRevokeInvite = async (id: string) => {
+        try {
+            await api.delete(`/users/invites/${id}`)
+            setInvites(prev => prev.filter(i => i.id !== id))
+            toast.success('Invite revoked')
+        } catch { toast.error('Failed to revoke') }
     }
 
     const handleResetPassword = async () => {
@@ -123,9 +113,9 @@ export function UserManagementMVP() {
                     <UsersThree className="w-5 h-5 text-gray-400" />
                     Manage Users
                 </CardTitle>
-                <Button onClick={() => setShowCreateDialog(true)} size="sm" className="bg-red-600 hover:bg-red-700">
+                <Button onClick={() => setShowInviteDialog(true)} size="sm" className="bg-red-600 hover:bg-red-700">
                     <UserPlus className="w-4 h-4 mr-2" />
-                    Add User
+                    Invite User
                 </Button>
             </CardHeader>
             <CardContent>
@@ -179,106 +169,86 @@ export function UserManagementMVP() {
                     </div>
                 )}
 
-                {/* Create User Dialog */}
-                <Dialog open={showCreateDialog} onOpenChange={(open) => {
-                    setShowCreateDialog(open)
-                    if (!open) resetForm()
+                {/* Pending invites */}
+                {invites.length > 0 && (
+                    <div className="mt-6">
+                        <h3 className="text-sm font-semibold text-gray-700 mb-2">Pending invites</h3>
+                        <div className="space-y-2">
+                            {invites.map(inv => (
+                                <div key={inv.id} className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+                                    <div className="flex items-center gap-3">
+                                        <span className="font-medium text-gray-900">{inv.email}</span>
+                                        <Badge className="bg-amber-100 text-amber-800">{inv.role}</Badge>
+                                        <span className="text-xs text-gray-500">
+                                            expires {new Date(inv.expiresAt).toLocaleDateString('en-IN')}
+                                        </span>
+                                    </div>
+                                    <Button variant="ghost" size="sm" className="text-red-600 h-7"
+                                        onClick={() => handleRevokeInvite(inv.id)}>Revoke</Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Invite User Dialog */}
+                <Dialog open={showInviteDialog} onOpenChange={(open) => {
+                    setShowInviteDialog(open)
+                    if (!open) setInviteForm({ email: '', role: 'SITE_MANAGER', site_id: '' })
                 }}>
                     <DialogContent className="max-w-md">
                         <DialogHeader>
-                            <DialogTitle>Create New User</DialogTitle>
+                            <DialogTitle>Invite User</DialogTitle>
                         </DialogHeader>
+                        <p className="text-sm text-gray-500">
+                            They'll get an email with a link to set their name and password (valid 72h).
+                        </p>
                         <div className="space-y-4 py-4">
                             <div>
                                 <Label>Role *</Label>
                                 <Select
-                                    value={form.role}
-                                    onValueChange={(v) => setForm({ ...form, role: v as 'CLIENT' | 'SITE_MANAGER' })}
+                                    value={inviteForm.role}
+                                    onValueChange={(v) => setInviteForm({ ...inviteForm, role: v as any, site_id: '' })}
                                 >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="CLIENT">Client</SelectItem>
                                         <SelectItem value="SITE_MANAGER">Site Manager</SelectItem>
+                                        <SelectItem value="ADMIN">Admin</SelectItem>
+                                        <SelectItem value="CLIENT">Client (links to a site)</SelectItem>
                                     </SelectContent>
                                 </Select>
-                            </div>
-                            <div>
-                                <Label>Full Name *</Label>
-                                <Input
-                                    placeholder="Mr. Ravi Kumar"
-                                    value={form.full_name}
-                                    onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <Label>Phone *</Label>
-                                <Input
-                                    placeholder="+91 98765 43210"
-                                    value={form.phone}
-                                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                                />
                             </div>
                             <div>
                                 <Label>Email *</Label>
                                 <Input
                                     type="email"
                                     placeholder="user@example.com"
-                                    value={form.email}
-                                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                                    value={inviteForm.email}
+                                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
                                 />
                             </div>
-                            <div>
-                                <Label>Location (Optional for Site Managers)</Label>
-                                <Input
-                                    placeholder="City, Area"
-                                    value={form.location}
-                                    onChange={(e) => setForm({ ...form, location: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <Label>Password (Optional)</Label>
-                                <Input
-                                    type="text"
-                                    placeholder="Leave blank to auto-generate"
-                                    value={form.password}
-                                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                                />
-                                <p className="text-xs text-gray-500 mt-1">If left blank, a secure temporary password will be generated.</p>
-                            </div>
+                            {inviteForm.role === 'CLIENT' && (
+                                <div>
+                                    <Label>Client's site *</Label>
+                                    <Select
+                                        value={inviteForm.site_id}
+                                        onValueChange={(v) => setInviteForm({ ...inviteForm, site_id: v })}
+                                    >
+                                        <SelectTrigger><SelectValue placeholder="Select site" /></SelectTrigger>
+                                        <SelectContent>
+                                            {sites.map((s: any) => (
+                                                <SelectItem key={s.id} value={s.id}>{s.site_name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                                Cancel
+                            <Button variant="outline" onClick={() => setShowInviteDialog(false)}>Cancel</Button>
+                            <Button onClick={handleInvite} disabled={inviting} className="bg-red-600 hover:bg-red-700">
+                                {inviting ? 'Sending...' : 'Send Invite'}
                             </Button>
-                            <Button onClick={handleCreateUser} disabled={creating} className="bg-red-600 hover:bg-red-700">
-                                {creating ? 'Creating...' : 'Create User'}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
-                {/* Generated Password Dialog */}
-                <Dialog open={!!generatedPassword} onOpenChange={(open) => !open && setGeneratedPassword(null)}>
-                    <DialogContent className="max-w-sm">
-                        <DialogHeader>
-                            <DialogTitle>User Created</DialogTitle>
-                        </DialogHeader>
-                        <div className="py-4 space-y-3 text-center">
-                            <p className="text-sm text-gray-600">A secure password has been generated down below. Please copy it and share it with the user.</p>
-                            <div className="p-3 bg-gray-100 rounded-lg flex items-center justify-between border border-gray-200">
-                                <code className="text-lg font-mono font-bold text-gray-900">{generatedPassword}</code>
-                                <Button size="sm" variant="ghost" onClick={() => {
-                                    navigator.clipboard.writeText(generatedPassword || '')
-                                    toast.success('Password copied to clipboard')
-                                }}>
-                                    <CopySimple className="w-5 h-5" />
-                                </Button>
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button onClick={() => setGeneratedPassword(null)} className="w-full">Done</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>

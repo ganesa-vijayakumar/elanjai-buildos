@@ -25,6 +25,7 @@ import { PackageName, PACKAGE_RATES } from '../../lib/database.types'
 import { SiteStatus } from '../../lib/database.types'
 import { SiteStatusBadge } from '../SiteStatusBadge'
 import { SiteSearchFilter } from '../SiteSearchFilter'
+import { PendingApprovalsMVP } from './PendingApprovalsMVP'
 
 interface OwnerDashboardMVPProps {
     onSiteSelect: (siteId: string) => void
@@ -275,6 +276,8 @@ export function OwnerDashboardMVP({ onSiteSelect }: OwnerDashboardMVPProps) {
                     </Card>
                 )}
             </div>
+
+            <PendingApprovalsMVP />
 
             {/* Sites List */}
             <Card>

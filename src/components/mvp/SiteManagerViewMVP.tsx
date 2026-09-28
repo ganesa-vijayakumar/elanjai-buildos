@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useSites } from '../../hooks/useSites'
 import { useExpenses, EXPENSE_CATEGORY_LABELS, COMMON_EXPENSE_ITEMS } from '../../hooks/useExpenses'
+import { useCollections } from '../../hooks/useCollections'
+import { useSiteStages } from '../../hooks/useStages'
 import { formatCurrency } from '../../hooks/useDashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
@@ -20,7 +22,8 @@ import {
     Clock,
     Warning,
     Cube,
-    PencilSimple
+    PencilSimple,
+    Money
 } from '@phosphor-icons/react'
 import { ExpenseCategory, PaymentMode } from '../../lib/database.types'
 import { MaterialSpentType, MATERIAL_SPENT_TYPES } from '../../lib/types'
@@ -40,6 +43,20 @@ export function SiteManagerViewMVP({ onSiteSelect }: SiteManagerViewMVPProps) {
     const [showExpenseDialog, setShowExpenseDialog] = useState(false)
     const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
     const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
+
+    // Collection (client payment received on site) — goes to owner as PENDING
+    const [collectionSiteId, setCollectionSiteId] = useState<string | undefined>(undefined)
+    const [showCollectionDialog, setShowCollectionDialog] = useState(false)
+    const { addCollection } = useCollections(collectionSiteId)
+    const { stages: collectionStages } = useSiteStages(collectionSiteId)
+    const [collectionForm, setCollectionForm] = useState({
+        amount: '',
+        stage_id: '' as string | undefined,
+        payment_mode: 'cash' as PaymentMode,
+        reference_number: '',
+        notes: '',
+        received_date: new Date().toISOString().split('T')[0],
+    })
 
     // Expense form state
     const [expenseForm, setExpenseForm] = useState({
@@ -198,6 +215,39 @@ export function SiteManagerViewMVP({ onSiteSelect }: SiteManagerViewMVPProps) {
         })
     }
 
+    const openCollectionDialog = (siteId: string) => {
+        setCollectionSiteId(siteId)
+        setCollectionForm({
+            amount: '', stage_id: undefined, payment_mode: 'cash',
+            reference_number: '', notes: '',
+            received_date: new Date().toISOString().split('T')[0],
+        })
+        setShowCollectionDialog(true)
+    }
+
+    const handleAddCollection = async () => {
+        if (!collectionSiteId || !collectionForm.amount || Number(collectionForm.amount) <= 0) {
+            toast.error('Enter a valid amount')
+            return
+        }
+        const { error } = await addCollection({
+            site_id: collectionSiteId,
+            amount: Number(collectionForm.amount),
+            stage_id: collectionForm.stage_id || null,
+            payment_mode: collectionForm.payment_mode,
+            reference_number: collectionForm.reference_number || undefined,
+            notes: collectionForm.notes || undefined,
+            received_date: collectionForm.received_date,
+        })
+        if (error) {
+            toast.error('Failed to record payment: ' + error.message)
+        } else {
+            toast.success('Payment recorded — sent to owner for approval')
+            setShowCollectionDialog(false)
+            setCollectionSiteId(undefined)
+        }
+    }
+
     if (loading) {
         return (
             <div className="animate-pulse space-y-4">
@@ -272,6 +322,16 @@ export function SiteManagerViewMVP({ onSiteSelect }: SiteManagerViewMVPProps) {
                                         >
                                             <Plus className="w-4 h-4 mr-1" />
                                             {(site.status || 'active') === 'hold' ? 'Site on Hold' : 'Add Expense'}
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="flex-1 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                                            onClick={() => openCollectionDialog(site.id)}
+                                            disabled={(site.status || 'active') === 'hold'}
+                                        >
+                                            <Money className="w-4 h-4 mr-1" />
+                                            Payment
                                         </Button>
                                     </div>
                                 </div>
@@ -678,6 +738,92 @@ export function SiteManagerViewMVP({ onSiteSelect }: SiteManagerViewMVPProps) {
                         }}>Cancel</Button>
                         <Button onClick={handleSubmitExpense} className="bg-orange-600 hover:bg-orange-700">
                             {editingExpenseId ? 'Resubmit for Approval' : 'Add Expense'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Record Payment (collection) Dialog — PENDING owner approval */}
+            <Dialog open={showCollectionDialog} onOpenChange={(open) => {
+                setShowCollectionDialog(open)
+                if (!open) setCollectionSiteId(undefined)
+            }}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Record Client Payment</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-gray-500">This will be sent to the owner for approval.</p>
+                    <div className="space-y-4 py-4">
+                        <div>
+                            <Label>Amount (₹) *</Label>
+                            <Input
+                                type="number"
+                                placeholder="50000"
+                                value={collectionForm.amount}
+                                onChange={(e) => setCollectionForm({ ...collectionForm, amount: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <Label>Construction Stage</Label>
+                            <Select
+                                value={collectionForm.stage_id || 'none'}
+                                onValueChange={(v) => setCollectionForm({ ...collectionForm, stage_id: v === 'none' ? undefined : v })}
+                            >
+                                <SelectTrigger><SelectValue placeholder="Select stage" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">No stage</SelectItem>
+                                    {collectionStages.map(s => (
+                                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <Label>Payment Mode</Label>
+                                <Select
+                                    value={collectionForm.payment_mode}
+                                    onValueChange={(v) => setCollectionForm({ ...collectionForm, payment_mode: v as PaymentMode })}
+                                >
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="cash">Cash</SelectItem>
+                                        <SelectItem value="upi">UPI</SelectItem>
+                                        <SelectItem value="cheque">Cheque</SelectItem>
+                                        <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label>Received Date</Label>
+                                <Input
+                                    type="date"
+                                    value={collectionForm.received_date}
+                                    onChange={(e) => setCollectionForm({ ...collectionForm, received_date: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <Label>Reference / UTR</Label>
+                            <Input
+                                placeholder="UPI ref, cheque no."
+                                value={collectionForm.reference_number}
+                                onChange={(e) => setCollectionForm({ ...collectionForm, reference_number: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <Label>Notes</Label>
+                            <Input
+                                placeholder="Optional"
+                                value={collectionForm.notes}
+                                onChange={(e) => setCollectionForm({ ...collectionForm, notes: e.target.value })}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowCollectionDialog(false)}>Cancel</Button>
+                        <Button onClick={handleAddCollection} className="bg-emerald-600 hover:bg-emerald-700">
+                            Record Payment
                         </Button>
                     </DialogFooter>
                 </DialogContent>

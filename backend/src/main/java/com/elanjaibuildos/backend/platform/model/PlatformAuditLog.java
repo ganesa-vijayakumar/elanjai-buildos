@@ -37,4 +37,12 @@ public class PlatformAuditLog {
     }
 
     public UUID getId() { return id; }
+    public UUID getActorId() { return actorId; }
+    public String getActorRole() { return actorRole; }
+    public String getAction() { return action; }
+    public String getEntityType() { return entityType; }
+    public String getEntityId() { return entityId; }
+    public Map<String, Object> getDetails() { return details; }
+    public String getIp() { return ip; }
+    public Instant getCreatedAt() { return createdAt; }
 }

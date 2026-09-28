@@ -16,6 +16,8 @@ import {
 import { UsersThree } from '@phosphor-icons/react'
 import { CompanySettings, PackageConfig, PackageName } from '../../lib/database.types'
 import { UserManagementMVP } from './UserManagementMVP'
+import { MastersMVP } from './MastersMVP'
+import { BrandingTabMVP } from './BrandingTabMVP'
 
 export function SettingsMVP() {
     const { user, loading: authLoading } = useAuth()
@@ -172,6 +174,8 @@ export function SettingsMVP() {
                     <TabsTrigger value="profile">My Profile</TabsTrigger>
                     <TabsTrigger value="company">Company Profile</TabsTrigger>
                     <TabsTrigger value="packages">Package Rates</TabsTrigger>
+                    <TabsTrigger value="masters">Masters</TabsTrigger>
+                    <TabsTrigger value="branding">Branding</TabsTrigger>
                     {/* Access to User Management shouldn't strictly be hidden here since Settings is only for admins/owners anyway */}
                     <TabsTrigger value="users">Manage Users</TabsTrigger>
                 </TabsList>
@@ -320,6 +324,16 @@ export function SettingsMVP() {
                             </Button>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                {/* Masters */}
+                <TabsContent value="masters">
+                    <MastersMVP />
+                </TabsContent>
+
+                {/* Branding */}
+                <TabsContent value="branding">
+                    <BrandingTabMVP />
                 </TabsContent>
 
                 {/* User Management */}

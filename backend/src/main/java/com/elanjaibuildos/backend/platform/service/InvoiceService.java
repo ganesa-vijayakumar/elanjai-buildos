@@ -48,6 +48,7 @@ public class InvoiceService {
 
         Invoice inv = new Invoice();
         inv.setTenant(tenant);
+        inv.setPlan(plan);
         inv.setInvoiceNumber(nextNumber());
         inv.setPeriodStart(LocalDate.now(IST));
         inv.setPeriodEnd("yearly".equals(billingCycle)

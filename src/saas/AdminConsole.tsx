@@ -1,7 +1,12 @@
 import { useState } from 'react'
-import { NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
+
+/* PLATFORM_SUPPORT gets a read-only console served by /api/platform/** */
+const adminUser = () => { try { return JSON.parse(localStorage.getItem('admin_user') || '{}') } catch { return {} } }
+const isSupport = () => adminUser().role === 'PLATFORM_SUPPORT'
+const base = () => isSupport() ? '/platform' : '/admin'
 
 /* ---------- auth ---------- */
 export function AdminLogin() {
@@ -40,16 +45,17 @@ export function AdminLogin() {
 /* ---------- shell ---------- */
 const NAV = [
     { to: '/admin', end: true, label: 'Dashboard' },
-    { to: '/admin/approvals', label: 'Approvals' },
+    { to: '/admin/approvals', label: 'Approvals', adminOnly: true },
     { to: '/admin/tenants', label: 'Tenants' },
     { to: '/admin/plans', label: 'Plans' },
     { to: '/admin/billing', label: 'Subscriptions' },
-    { to: '/admin/settings', label: 'Settings' },
+    { to: '/admin/settings', label: 'Settings', adminOnly: true },
     { to: '/admin/audit', label: 'Audit log' },
 ]
 
 export function AdminConsole() {
     const nav = useNavigate()
+    const support = isSupport()
     const logout = () => { localStorage.removeItem('jwt_token'); localStorage.removeItem('admin_user'); nav('/admin/login') }
     return (
         <div className="min-h-screen bg-slate-100 flex">
@@ -57,9 +63,10 @@ export function AdminConsole() {
                 <div className="h-16 px-5 flex items-center gap-2 text-white font-semibold border-b border-slate-800">
                     <span className="w-7 h-7 rounded-lg bg-indigo-600 grid place-items-center text-sm font-bold">E</span>
                     Platform
+                    {support && <span className="ml-auto rounded bg-slate-700 px-2 py-0.5 text-[10px] font-medium">SUPPORT</span>}
                 </div>
                 <nav className="flex-1 p-3 space-y-1 text-sm">
-                    {NAV.map(n => (
+                    {NAV.filter(n => !n.adminOnly || !support).map(n => (
                         <NavLink key={n.to} to={n.to} end={n.end as any}
                             className={({ isActive }) => `block rounded-lg px-3 py-2 ${isActive ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800'}`}>
                             {n.label}
@@ -72,12 +79,12 @@ export function AdminConsole() {
             <main className="flex-1 p-8 overflow-auto">
                 <Routes>
                     <Route index element={<AdminDashboard />} />
-                    <Route path="approvals" element={<Approvals />} />
+                    <Route path="approvals" element={support ? <Navigate to="/admin" /> : <Approvals />} />
                     <Route path="tenants" element={<Tenants />} />
                     <Route path="tenants/:id" element={<TenantDetail />} />
                     <Route path="plans" element={<Plans />} />
                     <Route path="billing" element={<Billing />} />
-                    <Route path="settings" element={<AdminSettings />} />
+                    <Route path="settings" element={support ? <Navigate to="/admin" /> : <AdminSettings />} />
                     <Route path="audit" element={<Audit />} />
                 </Routes>
             </main>
@@ -90,17 +97,17 @@ const h = "text-2xl font-bold text-slate-900"
 const card = "rounded-2xl border border-slate-200 bg-white p-5"
 
 function AdminDashboard() {
-    const { data } = useQuery({ queryKey: ['admin-dash'], queryFn: async () => (await api.get('/admin/dashboard')).data })
+    const support = isSupport()
+    const { data } = useQuery({ queryKey: ['admin-dash', support], queryFn: async () => (await api.get(`${base()}/dashboard`)).data })
     if (!data) return null
-    const kpis = [
-        ['MRR', `₹${Number(data.mrr).toLocaleString('en-IN')}`],
-        ['Active tenants', data.activeTenants],
-        ['Trials', data.trialTenants],
-        ['Pending approvals', data.pendingApprovals],
-    ]
+    const kpis = support
+        ? [['Total tenants', data.totalTenants], ['Active', data.activeTenants],
+           ['Trials', data.trialTenants], ['Suspended', data.suspendedTenants]]
+        : [['MRR', `₹${Number(data.mrr).toLocaleString('en-IN')}`], ['Active tenants', data.activeTenants],
+           ['Trials', data.trialTenants], ['Pending approvals', data.pendingApprovals]]
     return (
         <div>
-            <h1 className={h}>Dashboard</h1>
+            <h1 className={h}>Dashboard{support && <span className="ml-2 text-sm font-normal text-slate-500">read-only</span>}</h1>
             <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {kpis.map(([k, v]) => (
                     <div key={k} className={card}>
@@ -109,7 +116,7 @@ function AdminDashboard() {
                     </div>
                 ))}
             </div>
-            <div className={`${card} mt-6`}>
+            {data.tenantsByStatus && <div className={`${card} mt-6`}>
                 <h2 className="font-semibold text-slate-900">Tenants by status</h2>
                 <div className="mt-3 flex flex-wrap gap-2">
                     {Object.entries(data.tenantsByStatus).map(([k, v]) => (
@@ -117,7 +124,7 @@ function AdminDashboard() {
                             {k}: {String(v)}</span>
                     ))}
                 </div>
-            </div>
+            </div>}
         </div>
     )
 }
@@ -166,7 +173,7 @@ const statusBadge = (s: string) => ({
 }[s] || 'bg-slate-100 text-slate-600')
 
 function Tenants() {
-    const { data = [] } = useQuery({ queryKey: ['admin-tenants'], queryFn: async () => (await api.get('/admin/tenants')).data })
+    const { data = [] } = useQuery({ queryKey: ['admin-tenants'], queryFn: async () => (await api.get(`${base()}/tenants`)).data })
     const nav = useNavigate()
     return (
         <div>
@@ -198,7 +205,8 @@ function Tenants() {
 function TenantDetail() {
     const { id } = useParams()
     const qc = useQueryClient()
-    const { data } = useQuery({ queryKey: ['admin-tenant', id], queryFn: async () => (await api.get(`/admin/tenants/${id}`)).data })
+    const support = isSupport()
+    const { data } = useQuery({ queryKey: ['admin-tenant', id], queryFn: async () => (await api.get(`${base()}/tenants/${id}`)).data })
     if (!data) return null
     const act = async (action: string) => {
         await api.post(`/admin/tenants/${id}/${action}`)
@@ -207,7 +215,7 @@ function TenantDetail() {
     return (
         <div>
             <h1 className={h}>{data.company} <span className="text-base font-normal text-slate-500">{data.slug}</span></h1>
-            <div className="mt-4 flex gap-2">
+            {!support && <div className="mt-4 flex gap-2">
                 <button onClick={() => act('suspend')} className="rounded-lg border border-rose-300 text-rose-700 px-3 py-1.5 text-sm">Suspend</button>
                 <button onClick={() => act('reactivate')} className="rounded-lg border border-emerald-300 text-emerald-700 px-3 py-1.5 text-sm">Reactivate</button>
                 <button onClick={() => act('cancel')} className="rounded-lg border border-slate-300 text-slate-700 px-3 py-1.5 text-sm">Cancel</button>
@@ -215,7 +223,15 @@ function TenantDetail() {
                     className="rounded-lg border border-slate-300 text-slate-700 px-3 py-1.5 text-sm">Offboard</button>
                 {data.status === 'PROVISION_FAILED' &&
                     <button onClick={() => act('retry-provisioning')} className="rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-sm">Retry provisioning</button>}
-            </div>
+                {data.status === 'OFFBOARDED' &&
+                    <button onClick={async () => {
+                            const r = await api.get(`/admin/tenants/${id}/export`, { responseType: 'blob' })
+                            const url = URL.createObjectURL(r.data)
+                            const a = document.createElement('a'); a.href = url; a.download = `${data.slug}.zip`; a.click()
+                            URL.revokeObjectURL(url)
+                        }}
+                        className="rounded-lg border border-indigo-300 text-indigo-700 px-3 py-1.5 text-sm">Download export</button>}
+            </div>}
             <div className="mt-6 grid md:grid-cols-2 gap-4">
                 <div className={card}>
                     <h2 className="font-semibold text-slate-900">Usage</h2>
@@ -233,9 +249,15 @@ function TenantDetail() {
                 <div className={card}>
                     <h2 className="font-semibold text-slate-900">Invoices</h2>
                     {(data.invoices || []).map((i: any) => (
-                        <div key={i.number} className="mt-2 flex justify-between text-sm border-b border-slate-100 pb-2">
+                        <div key={i.number} className="mt-2 flex justify-between items-center text-sm border-b border-slate-100 pb-2">
                             <span>{i.number}</span><span>₹{i.total}</span>
                             <span className="text-slate-500">{i.status}</span>
+                            {i.pdf && <button
+                                onClick={async () => {
+                                    const r = await api.get(`${base()}/invoices/${i.id}/pdf`, { responseType: 'blob' })
+                                    window.open(URL.createObjectURL(r.data), '_blank')
+                                }}
+                                className="rounded-md border border-slate-300 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50">PDF</button>}
                         </div>
                     ))}
                     {(data.invoices || []).length === 0 && <p className="text-sm text-slate-500 mt-2">No invoices yet.</p>}
@@ -246,7 +268,7 @@ function TenantDetail() {
 }
 
 function Plans() {
-    const { data = [] } = useQuery({ queryKey: ['admin-plans'], queryFn: async () => (await api.get('/admin/plans')).data })
+    const { data = [] } = useQuery({ queryKey: ['admin-plans'], queryFn: async () => (await api.get(`${base()}/plans`)).data })
     return (
         <div>
             <h1 className={h}>Plans</h1>
@@ -269,8 +291,8 @@ function Plans() {
 }
 
 function Billing() {
-    const { data = [] } = useQuery({ queryKey: ['admin-subs'], queryFn: async () => (await api.get('/admin/subscriptions')).data })
-    const { data: inv = [] } = useQuery({ queryKey: ['admin-invoices'], queryFn: async () => (await api.get('/admin/invoices')).data })
+    const { data = [] } = useQuery({ queryKey: ['admin-subs'], queryFn: async () => (await api.get(`${base()}/subscriptions`)).data })
+    const { data: inv = [] } = useQuery({ queryKey: ['admin-invoices'], queryFn: async () => (await api.get(`${base()}/invoices`)).data })
     return (
         <div className="space-y-6">
             <h1 className={h}>Subscriptions & invoices</h1>
@@ -320,7 +342,7 @@ function AdminSettings() {
 }
 
 function Audit() {
-    const { data = [] } = useQuery({ queryKey: ['admin-audit'], queryFn: async () => (await api.get('/admin/audit')).data })
+    const { data = [] } = useQuery({ queryKey: ['admin-audit'], queryFn: async () => (await api.get(`${base()}/audit`)).data })
     return (
         <div>
             <h1 className={h}>Audit log</h1>

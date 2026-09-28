@@ -48,8 +48,8 @@ public class Site {
 
     private BigDecimal totalValue;
 
-    @Enumerated(EnumType.STRING)
-    private ConstructionStage currentStage;
+    /** Denormalized current stage name (site_stages rows are the source of truth). */
+    private String currentStage;
 
     @Enumerated(EnumType.STRING)
     private SiteStatus status;

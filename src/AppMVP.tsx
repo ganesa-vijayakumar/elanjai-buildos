@@ -12,6 +12,7 @@ import { QuotationsMVP } from './components/mvp/QuotationsMVP'
 import { ReportsMVP } from './components/mvp/ReportsMVP'
 import { SettingsMVP } from './components/mvp/SettingsMVP'
 import { UserManagementMVP } from './components/mvp/UserManagementMVP'
+import { SetupWizardMVP } from './components/mvp/SetupWizardMVP'
 import { useNavigate } from 'react-router-dom'
 
 // Type for active views in the MVP
@@ -180,6 +181,10 @@ function AppContent() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {role === 'owner' && (
+                <SetupWizardMVP onGo={(v) => goTo(v as ActiveView)} />
             )}
 
             <main className="container mx-auto px-4 py-8">

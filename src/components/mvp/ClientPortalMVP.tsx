@@ -1,5 +1,15 @@
+import { useState } from 'react'
 import { useSites } from '../../hooks/useSites'
 import { useCollections, useCollectionsByStage } from '../../hooks/useCollections'
+import { useSiteStages } from '../../hooks/useStages'
+import { useChangeRequests } from '../../hooks/useChangeRequests'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Textarea } from '../ui/textarea'
+import { Button } from '../ui/button'
+import { toast } from 'sonner'
+import { GitPullRequest, Plus } from '@phosphor-icons/react'
 import { formatCurrency, formatFullCurrency } from '../../hooks/useDashboard'
 import { useAuth } from '../../hooks/useAuth'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
@@ -13,7 +23,6 @@ import {
     Clock,
     Money
 } from '@phosphor-icons/react'
-import { DEFAULT_STAGES } from '../../lib/database.types'
 
 export function ClientPortalMVP() {
     const { user } = useAuth()
@@ -23,24 +32,20 @@ export function ClientPortalMVP() {
     const clientSite = sites[0]
     const { collections, totalCollections } = useCollections(clientSite?.id)
     const { collectionsByStage } = useCollectionsByStage(clientSite?.id)
+    const { stages } = useSiteStages(clientSite?.id)
+    const { items: changeRequests, create: createCr } = useChangeRequests(clientSite?.id)
+    const [crOpen, setCrOpen] = useState(false)
+    const [crForm, setCrForm] = useState({ description: '', type: 'design', costImpact: '' })
 
-    // Calculate progress based on stage
-    const getStageProgress = (stage: string | null) => {
-        const stageProgress: Record<string, number> = {
-            advance: 5,
-            foundation: 15,
-            plinth: 25,
-            rcc_roof: 40,
-            brickwork: 55,
-            plastering: 70,
-            electrical_plumbing: 80,
-            finishing: 92,
-            handover: 100,
-        }
-        return stageProgress[stage || 'advance'] || 0
-    }
-
-    const progress = clientSite ? getStageProgress(clientSite.current_stage) : 0
+    // Progress = cumulative percentage of completed stages (fallback: in_progress partial credit)
+    const progress = stages.length
+        ? Math.round(stages.reduce((sum, s) => {
+            const pct = Number(s.percentage) || 0
+            if (s.status === 'done') return sum + pct
+            if (s.status === 'in_progress') return sum + pct / 2
+            return sum
+        }, 0))
+        : 0
     const pendingAmount = (clientSite?.total_value || 0) - totalCollections
 
     if (sitesLoading) {
@@ -135,7 +140,9 @@ export function ClientPortalMVP() {
                             <span>Current Stage:</span>
                         </div>
                         <span className="font-medium text-gray-900">
-                            {DEFAULT_STAGES.find(s => s.stage === clientSite.current_stage)?.label || 'Not Started'}
+                            {clientSite.current_stage ||
+                                stages.find(s => s.status === 'in_progress')?.name ||
+                                stages[0]?.name || 'Not Started'}
                         </span>
                     </div>
                 </CardContent>
@@ -167,25 +174,26 @@ export function ClientPortalMVP() {
 
                     {/* Stage-wise payments */}
                     <div className="space-y-3">
-                        {DEFAULT_STAGES.map((stage) => {
-                            const stageCollections = collectionsByStage[stage.stage]?.total || 0
-                            const expectedAmount = clientSite.total_value ? (stage.percentage / 100) * clientSite.total_value : 0
+                        {stages.map((stage) => {
+                            const stageCollections = collectionsByStage[stage.id]?.total || 0
+                            const expectedAmount = Number(stage.budgetAmount) ||
+                                (clientSite.total_value ? (Number(stage.percentage) / 100) * clientSite.total_value : 0)
                             const isPaid = stageCollections >= expectedAmount
                             const isPartial = stageCollections > 0 && stageCollections < expectedAmount
 
                             return (
-                                <div key={stage.stage} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div key={stage.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                     <div className="flex items-center gap-3">
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isPaid ? 'bg-green-100' : isPartial ? 'bg-yellow-100' : 'bg-gray-100'
                                             }`}>
-                                            {isPaid ? (
+                                            {isPaid || stage.status === 'done' ? (
                                                 <CheckCircle className="w-5 h-5 text-green-600" weight="fill" />
                                             ) : (
-                                                <Clock className={`w-5 h-5 ${isPartial ? 'text-yellow-600' : 'text-gray-400'}`} />
+                                                <Clock className={`w-5 h-5 ${isPartial || stage.status === 'in_progress' ? 'text-yellow-600' : 'text-gray-400'}`} />
                                             )}
                                         </div>
                                         <div>
-                                            <p className="font-medium text-gray-900">{stage.label}</p>
+                                            <p className="font-medium text-gray-900">{stage.name}</p>
                                             <p className="text-xs text-gray-500">{stage.percentage}%</p>
                                         </div>
                                     </div>
@@ -205,6 +213,80 @@ export function ClientPortalMVP() {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Change Requests */}
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <GitPullRequest className="w-5 h-5 text-gray-400" />
+                            Change Requests
+                        </CardTitle>
+                        <Button size="sm" variant="outline" onClick={() => setCrOpen(true)}>
+                            <Plus className="w-4 h-4 mr-1" />Request Change
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {changeRequests.length === 0 ? (
+                        <p className="text-sm text-gray-400 text-center py-4">
+                            Need a design or material change? Raise a request and our team will review it.
+                        </p>
+                    ) : (
+                        <div className="space-y-2">
+                            {changeRequests.map(cr => (
+                                <div key={cr.id} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
+                                    <div>
+                                        <p className="text-sm font-medium">{cr.description}</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                            {cr.crNumber}
+                                            {cr.approverNotes && <> · "{cr.approverNotes}"</>}
+                                        </p>
+                                    </div>
+                                    <Badge className={
+                                        cr.status === 'approved' || cr.status === 'implemented' ? 'bg-green-100 text-green-700' :
+                                        cr.status === 'rejected' ? 'bg-red-100 text-red-600' :
+                                        'bg-amber-100 text-amber-700'
+                                    }>{cr.status.replace('_', ' ')}</Badge>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Dialog open={crOpen} onOpenChange={setCrOpen}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>Request a Change</DialogTitle></DialogHeader>
+                    <div className="space-y-3">
+                        <div>
+                            <Label>Describe the change</Label>
+                            <Textarea value={crForm.description}
+                                onChange={e => setCrForm(f => ({ ...f, description: e.target.value }))}
+                                placeholder="e.g. Move the kitchen window 2 feet to the left" />
+                        </div>
+                        <div>
+                            <Label>Expected cost impact (₹, optional)</Label>
+                            <Input type="number" value={crForm.costImpact}
+                                onChange={e => setCrForm(f => ({ ...f, costImpact: e.target.value }))} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button onClick={async () => {
+                            if (!crForm.description.trim()) { toast.error('Please describe the change'); return }
+                            const { error } = await createCr({
+                                description: crForm.description,
+                                type: crForm.type,
+                                costImpact: crForm.costImpact ? parseFloat(crForm.costImpact) : undefined,
+                            })
+                            if (error) { toast.error('Failed to submit'); return }
+                            toast.success('Change request submitted')
+                            setCrOpen(false)
+                            setCrForm({ description: '', type: 'design', costImpact: '' })
+                        }}>Submit</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Contact Card */}
             <Card className="bg-gray-50">

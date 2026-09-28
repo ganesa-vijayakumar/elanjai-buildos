@@ -1,6 +1,6 @@
 package com.elanjaibuildos.backend.dto;
 
-import com.elanjaibuildos.backend.model.ConstructionStage;
+import com.elanjaibuildos.backend.model.ExpenseApprovalStatus;
 import com.elanjaibuildos.backend.model.PaymentMode;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,11 +21,13 @@ public class CollectionResponse {
     private UUID siteId;
     private String siteName;
     private BigDecimal amount;
-    private ConstructionStage stage;
+    private UUID stageId;
+    private String stage;
     private PaymentMode paymentMode;
     private String referenceNumber;
     private String notes;
     private LocalDate receivedDate;
+    private ExpenseApprovalStatus approvalStatus;
     private UUID createdBy;
     private LocalDateTime createdAt;
 }

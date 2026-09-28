@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface SubscriptionRepository extends JpaRepository<Subscription, UUID> {
     Optional<Subscription> findTopByTenant_IdOrderByCreatedAtDesc(UUID tenantId);
     Optional<Subscription> findByRazorpaySubscriptionId(String id);
+    Optional<Subscription> findByTenant_Id(java.util.UUID tenantId);
 }

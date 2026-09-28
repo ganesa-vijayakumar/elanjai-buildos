@@ -60,6 +60,24 @@ public class DataInitializer {
     }
 
     @Bean
+    CommandLineRunner seedPlatformSupport(PlatformUserRepository platformUsers, PasswordEncoder encoder,
+                                          @Value("${platform.support.email:support@elanjai.local}") String email,
+                                          @Value("${platform.support.password:Support@123}") String password,
+                                          @Value("${app.demo.seed:true}") boolean demoSeed) {
+        return args -> {
+            if (demoSeed && platformUsers.findByEmail(email).isEmpty()) {
+                PlatformUser u = new PlatformUser();
+                u.setEmail(email);
+                u.setName("Platform Support");
+                u.setRole(PlatformUser.Role.PLATFORM_SUPPORT);
+                u.setPassword(encoder.encode(password));
+                platformUsers.saveAndFlush(u);
+                log.info("Platform support seeded: {}", email);
+            }
+        };
+    }
+
+    @Bean
     CommandLineRunner seedDemoTenant(TenantRepository tenants, PlanRepository plans,
                                      TenantSchemaProvisioner provisioner,
                                      UserRepository tenantUsers, PasswordEncoder encoder,

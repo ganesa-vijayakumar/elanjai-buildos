@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../lib/api';
-import { Site, SiteWithFinancials, SiteStatus, ConstructionStage, PackageName } from '../lib/database.types';
+import { Site, SiteWithFinancials, SiteStatus, PackageName } from '../lib/database.types';
 import { useAuth } from './useAuth';
 
 interface UseSitesReturn {
@@ -24,7 +24,7 @@ interface CreateSiteInput {
     rate_per_sqft?: number;
     package_name?: PackageName;
     total_value?: number;
-    current_stage?: ConstructionStage;
+    current_stage?: string;
     status?: SiteStatus;
     start_date?: string;
     expected_completion?: string;
@@ -63,7 +63,7 @@ const mapSiteFromBackend = (data: any): Site => {
         rate_per_sqft: data.ratePerSqft,
         package_name: data.packageName ? data.packageName.toLowerCase() as PackageName : null,
         total_value: data.totalValue,
-        current_stage: data.currentStage ? data.currentStage.toLowerCase() as ConstructionStage : null,
+        current_stage: data.currentStage ?? null,
         status: mapBackendStatusToFrontend(data.status),
         start_date: data.startDate,
         expected_completion: data.expectedEndDate,
@@ -91,7 +91,7 @@ const mapSiteToBackend = (input: any) => {
         ratePerSqft: input.rate_per_sqft,
         packageName: input.package_name ? input.package_name.toUpperCase() : null,
         totalValue: input.total_value,
-        currentStage: input.current_stage ? input.current_stage.toUpperCase() : null,
+        currentStage: input.current_stage ?? null,
         status: mapFrontendStatusToBackend(input.status),
         startDate: input.start_date,
         expectedEndDate: input.expected_completion || input.expected_end_date,

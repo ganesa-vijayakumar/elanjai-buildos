@@ -1,6 +1,5 @@
 package com.elanjaibuildos.backend.dto;
 
-import com.elanjaibuildos.backend.model.ConstructionStage;
 import com.elanjaibuildos.backend.model.PackageName;
 import com.elanjaibuildos.backend.model.SiteStatus;
 import lombok.AllArgsConstructor;
@@ -27,7 +26,7 @@ public class SiteRequest {
     private BigDecimal ratePerSqft;
     private PackageName packageName;
     private BigDecimal totalValue;
-    private ConstructionStage currentStage;
+    private String currentStage;
     private SiteStatus status;
     private LocalDate startDate;
     private LocalDate expectedEndDate;

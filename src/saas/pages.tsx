@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
@@ -211,10 +211,10 @@ export function Signup() {
 export function VerifyEmail() {
     const [params] = useSearchParams()
     const [state, setState] = useState<'verifying' | 'ok' | 'fail'>('verifying')
-    useState(() => {
+    useEffect(() => {
         api.get('/public/verify-email', { params: { token: params.get('token') } })
             .then(() => setState('ok')).catch(() => setState('fail'))
-    })
+    }, [])
     return (
         <div className="min-h-screen bg-slate-50 grid place-items-center">
             <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center max-w-md">

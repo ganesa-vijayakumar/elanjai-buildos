@@ -34,12 +34,18 @@ public class TenantLifecycleGuardFilter extends OncePerRequestFilter {
                     "This workspace is " + status.toLowerCase().replace('_', ' ') + ". Contact support.");
             return;
         }
-        if ("GRACE".equals(status) && isWrite(request.getMethod())) {
+        if ("GRACE".equals(status) && isWrite(request.getMethod()) && !isGraceAllowed(request.getRequestURI())) {
             write(response, 403, "TENANT_READ_ONLY",
                     "Subscription grace period — workspace is read-only. Pay the outstanding invoice to restore full access.");
             return;
         }
         chain.doFilter(request, response);
+    }
+
+    /** Writes a GRACE tenant still needs: login (to reach the read-only UI) and billing (to pay its way out). */
+    private boolean isGraceAllowed(String uri) {
+        return uri.startsWith("/api/auth/login") || uri.startsWith("/api/auth/authenticate")
+            || uri.startsWith("/api/billing/");
     }
 
     private boolean isWrite(String method) {

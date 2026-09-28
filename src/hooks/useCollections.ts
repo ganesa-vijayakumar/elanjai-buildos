@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../lib/api';
-import { Collection, ConstructionStage, PaymentMode } from '../lib/database.types';
+import { Collection, PaymentMode } from '../lib/database.types';
 import { useAuth } from './useAuth';
 
 interface UseCollectionsReturn {
@@ -17,7 +17,8 @@ interface UseCollectionsReturn {
 interface CreateCollectionInput {
     site_id: string;
     amount: number;
-    stage?: ConstructionStage;
+    stage_id?: string | null;
+    stage?: string | null;
     payment_mode?: PaymentMode;
     reference_number?: string;
     notes?: string;
@@ -29,11 +30,13 @@ const mapCollectionFromBackend = (data: any): Collection => {
         id: data.id,
         site_id: data.siteId,
         amount: data.amount,
-        stage: data.stage ? data.stage.toLowerCase() as ConstructionStage : null,
+        stage_id: data.stageId ?? null,
+        stage: data.stage ?? null,
         payment_mode: data.paymentMode ? data.paymentMode.toLowerCase() as PaymentMode : null,
         reference_number: data.referenceNumber,
         notes: data.notes,
         received_date: data.receivedDate,
+        approval_status: data.approvalStatus ? data.approvalStatus.toLowerCase() : null,
         created_by: data.createdBy,
         created_at: data.createdAt,
     };
@@ -43,7 +46,8 @@ const mapCollectionToBackend = (input: any) => {
     return {
         siteId: input.site_id,
         amount: input.amount,
-        stage: input.stage ? input.stage.toUpperCase() : null,
+        stageId: input.stage_id ?? null,
+        stage: input.stage ?? null,
         paymentMode: input.payment_mode ? input.payment_mode.toUpperCase() : null,
         referenceNumber: input.reference_number,
         notes: input.notes,
@@ -159,7 +163,8 @@ export function useCollectionsByStage(siteId: string | undefined) {
     const { collections, loading, error } = useCollections(siteId);
 
     const collectionsByStage = collections.reduce((acc, collection) => {
-        const stage = collection.stage || 'unassigned';
+        // Prefer the site_stage FK; fall back to the denormalized label
+        const stage = collection.stage_id || collection.stage || 'unassigned';
         if (!acc[stage]) {
             acc[stage] = { total: 0, count: 0, collections: [] };
         }

@@ -26,6 +26,10 @@ public class Invoice {
     @JoinColumn(name = "subscription_id")
     private Subscription subscription;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plan_id")
+    private Plan plan;   // plan purchased by this invoice — applied on payment (D-051)
+
     @Column(name = "razorpay_payment_id") private String razorpayPaymentId;
     @Column(name = "razorpay_order_id") private String razorpayOrderId;
     @Column(name = "period_start") private LocalDate periodStart;
@@ -55,6 +59,8 @@ public class Invoice {
     public void setTenant(Tenant v) { this.tenant = v; }
     public Subscription getSubscription() { return subscription; }
     public void setSubscription(Subscription v) { this.subscription = v; }
+    public Plan getPlan() { return plan; }
+    public void setPlan(Plan v) { this.plan = v; }
     public String getRazorpayPaymentId() { return razorpayPaymentId; }
     public void setRazorpayPaymentId(String v) { this.razorpayPaymentId = v; }
     public String getRazorpayOrderId() { return razorpayOrderId; }

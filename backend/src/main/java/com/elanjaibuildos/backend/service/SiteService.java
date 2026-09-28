@@ -23,6 +23,7 @@ public class SiteService {
     private final SiteRepository siteRepository;
     private final UserRepository userRepository;
     private final PlatformGuard platformGuard;
+    private final StageService stageService;
 
     public List<SiteResponse> getAllSites() {
         return siteRepository.findAll().stream()
@@ -70,14 +71,20 @@ public class SiteService {
                 .packageName(request.getPackageName())
                 .totalValue(request.getTotalValue())
                 .currentStage(request.getCurrentStage())
-                .status(request.getStatus())
+                .status(request.getStatus() != null ? request.getStatus() : SiteStatus.IN_PROGRESS)
                 .startDate(request.getStartDate())
                 .expectedEndDate(request.getExpectedEndDate())
                 .estimatedMaterialExpense(request.getEstimatedMaterialExpense())
                 .createdBy(currentUser)
                 .build();
 
-        return mapToResponse(siteRepository.save(site));
+        Site saved = siteRepository.save(site);
+        stageService.copyTemplateToSite(saved);
+        if (saved.getCurrentStage() == null || saved.getCurrentStage().isBlank()) {
+            stageService.forSite(saved.getId()).stream().findFirst()
+                    .ifPresent(s -> { saved.setCurrentStage(s.getName()); siteRepository.save(saved); });
+        }
+        return mapToResponse(saved);
     }
 
     public SiteResponse updateSite(UUID id, SiteRequest request) {

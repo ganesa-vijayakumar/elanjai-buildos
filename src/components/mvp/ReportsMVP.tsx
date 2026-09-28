@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import api from '../../lib/api'
 import { useSites } from '../../hooks/useSites'
 import { useCollections } from '../../hooks/useCollections'
 import { useExpenses, EXPENSE_CATEGORY_LABELS } from '../../hooks/useExpenses'
@@ -113,19 +114,22 @@ export function ReportsMVP() {
                     <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
                     <p className="text-gray-500">View and export financial reports</p>
                 </div>
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                    <SelectTrigger className="w-[200px]">
-                        <Calendar className="w-4 h-4 mr-2" />
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {getMonthOptions().map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                    <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                        <SelectTrigger className="w-[200px]">
+                            <Calendar className="w-4 h-4 mr-2" />
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {getMonthOptions().map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <CsvExport />
+                </div>
             </div>
 
             {/* Summary Cards */}
@@ -420,5 +424,36 @@ export function ReportsMVP() {
                 </TabsContent>
             </Tabs>
         </div>
+    )
+}
+
+function CsvExport() {
+    const [downloading, setDownloading] = useState<string | null>(null)
+    const download = async (type: 'collections' | 'expenses' | 'sites') => {
+        setDownloading(type)
+        try {
+            const r = await api.get(`/reports/export.csv?type=${type}`, { responseType: 'blob' })
+            const url = URL.createObjectURL(r.data)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${type}-${new Date().toISOString().slice(0, 10)}.csv`
+            a.click()
+            URL.revokeObjectURL(url)
+        } catch (e) {
+            console.error('CSV export failed', e)
+        } finally { setDownloading(null) }
+    }
+    return (
+        <Select onValueChange={v => download(v as 'collections' | 'expenses' | 'sites')}>
+            <SelectTrigger className="w-[150px]">
+                <Download className="w-4 h-4 mr-2" />
+                <SelectValue placeholder={downloading ? 'Exporting…' : 'Export CSV'} />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="collections">Collections</SelectItem>
+                <SelectItem value="expenses">Expenses</SelectItem>
+                <SelectItem value="sites">Sites Summary</SelectItem>
+            </SelectContent>
+        </Select>
     )
 }

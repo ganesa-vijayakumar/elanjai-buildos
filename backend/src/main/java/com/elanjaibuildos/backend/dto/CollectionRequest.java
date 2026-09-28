@@ -1,6 +1,5 @@
 package com.elanjaibuildos.backend.dto;
 
-import com.elanjaibuildos.backend.model.ConstructionStage;
 import com.elanjaibuildos.backend.model.PaymentMode;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,7 +17,10 @@ import java.util.UUID;
 public class CollectionRequest {
     private UUID siteId;
     private BigDecimal amount;
-    private ConstructionStage stage;
+    /** site_stages row id (optional) */
+    private UUID stageId;
+    /** stage display name */
+    private String stage;
     private PaymentMode paymentMode;
     private String referenceNumber;
     private String notes;

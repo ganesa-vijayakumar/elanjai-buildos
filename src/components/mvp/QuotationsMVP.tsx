@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useQuotations, getQuotationStatusInfo, getPackageInfo } from '../../hooks/useQuotations'
+import api from '../../lib/api'
+import { useQuotations, getQuotationStatusInfo, getPackageInfo, fetchStageTemplates } from '../../hooks/useQuotations'
 import { useUsers } from '../../hooks/useUsers'
 import { formatFullCurrency } from '../../hooks/useDashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
@@ -283,10 +284,7 @@ export function QuotationsMVP({ onSiteCreated }: QuotationsMVPProps) {
         try {
             const rate = PACKAGE_RATES[editForm.package_name]
             const totalValue = Number(editForm.builtup_area) * rate
-            const stageBreakdown: StageBreakdown[] = DEFAULT_STAGES.map(stage => ({
-                ...stage,
-                amount: Math.round((stage.percentage / 100) * totalValue),
-            }))
+            const stageBreakdown: StageBreakdown[] = await fetchStageTemplates(totalValue)
 
             const { error } = await updateQuotation(selectedQuotation.id, {
                 client_name: editForm.client_name,
@@ -674,17 +672,20 @@ export function QuotationsMVP({ onSiteCreated }: QuotationsMVPProps) {
                                 <div className="mb-6">
                                     <h4 className="font-medium text-gray-900 mb-3">Stage-wise Breakdown</h4>
                                     <div className="space-y-2">
-                                        {DEFAULT_STAGES.map((stage) => {
-                                            const amount = selectedQuotation.total_value
-                                                ? (stage.percentage / 100) * selectedQuotation.total_value
-                                                : 0
-                                            return (
-                                                <div key={stage.stage} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                                                    <span className="text-sm text-gray-600">{stage.label} ({stage.percentage}%)</span>
-                                                    <span className="font-medium">{formatFullCurrency(amount)}</span>
-                                                </div>
-                                            )
-                                        })}
+                                        {(selectedQuotation.stage_breakdown?.length
+                                            ? selectedQuotation.stage_breakdown
+                                            : DEFAULT_STAGES).map((stage: StageBreakdown) => {
+                                                const amount = stage.amount ||
+                                                    (selectedQuotation.total_value
+                                                        ? (stage.percentage / 100) * selectedQuotation.total_value
+                                                        : 0)
+                                                return (
+                                                    <div key={stage.stage} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                                        <span className="text-sm text-gray-600">{stage.label} ({stage.percentage}%)</span>
+                                                        <span className="font-medium">{formatFullCurrency(amount)}</span>
+                                                    </div>
+                                                )
+                                            })}
                                     </div>
                                 </div>
                             </div>
@@ -720,14 +721,30 @@ export function QuotationsMVP({ onSiteCreated }: QuotationsMVPProps) {
                                     </>
                                 )}
                                 {selectedQuotation.status === 'signed' && (
-                                    <Button
-                                        size="sm"
-                                        className="bg-green-600 hover:bg-green-700"
-                                        onClick={() => openConvertDialog(selectedQuotation)}
-                                    >
-                                        <ArrowRight className="w-4 h-4 mr-1" />
-                                        Convert to Site
-                                    </Button>
+                                    <>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={async () => {
+                                                try {
+                                                    const r = await api.get(`/quotations/${selectedQuotation.id}/agreement.pdf`, { responseType: 'blob' })
+                                                    const url = URL.createObjectURL(r.data)
+                                                    window.open(url, '_blank')
+                                                } catch { toast.error('Failed to generate agreement') }
+                                            }}
+                                        >
+                                            <FileText className="w-4 h-4 mr-1" />
+                                            Agreement
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            className="bg-green-600 hover:bg-green-700"
+                                            onClick={() => openConvertDialog(selectedQuotation)}
+                                        >
+                                            <ArrowRight className="w-4 h-4 mr-1" />
+                                            Convert to Site
+                                        </Button>
+                                    </>
                                 )}
                             </DialogFooter>
                         </>

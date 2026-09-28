@@ -25,6 +25,7 @@ public class ExpenseService {
     private final ExpenseRepository expenseRepository;
     private final SiteRepository siteRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public List<ExpenseResponse> getAllExpenses() {
         return expenseRepository.findAll().stream()
@@ -69,7 +70,28 @@ public class ExpenseService {
                 .createdBy(currentUser)
                 .build();
 
-        return mapToResponse(expenseRepository.save(expense));
+        Expense saved = expenseRepository.save(expense);
+        if (status == ExpenseApprovalStatus.PENDING) notifyApprovers(currentUser, saved, site);
+        return mapToResponse(saved);
+    }
+
+    /** Alert owner/admins that a staff expense needs sign-off. */
+    private void notifyApprovers(User submitter, Expense expense, Site site) {
+        try {
+            for (com.elanjaibuildos.backend.model.Role r :
+                    new com.elanjaibuildos.backend.model.Role[]{com.elanjaibuildos.backend.model.Role.OWNER,
+                            com.elanjaibuildos.backend.model.Role.ADMIN}) {
+                for (User u : userRepository.findByRole(r)) {
+                    if (u.getId().equals(submitter.getId())) continue;
+                    notificationService.toUser(u.getId(), "expense_pending",
+                            "New expense pending approval",
+                            submitter.getFullName() + " submitted " +
+                                    (expense.getItemName() != null ? expense.getItemName() : "an expense") +
+                                    " of " + expense.getTotalAmount() +
+                                    (site != null ? " for " + site.getSiteName() : "") + ".", null);
+                }
+            }
+        } catch (Exception ignored) { }
     }
 
     public ExpenseResponse updateExpense(UUID id, ExpenseRequest request) {

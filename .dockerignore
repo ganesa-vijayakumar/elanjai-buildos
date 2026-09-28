@@ -1,0 +1,12 @@
+.git
+node_modules
+dist
+backend/target
+backend/node_modules
+**/.DS_Store
+**/*.log
+.vscode
+_ledger
+docker-compose*.yml
+Dockerfile*
+*.md

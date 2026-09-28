@@ -5,6 +5,7 @@ import com.elanjaibuildos.backend.dto.SiteResponse;
 import com.elanjaibuildos.backend.service.SiteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/sites")
 @RequiredArgsConstructor
+
 public class SiteController {
 
     private final SiteService siteService;
@@ -27,16 +29,19 @@ public class SiteController {
         return ResponseEntity.ok(siteService.getSiteById(id));
     }
 
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     @PostMapping
     public ResponseEntity<SiteResponse> createSite(@RequestBody SiteRequest request) {
         return ResponseEntity.ok(siteService.createSite(request));
     }
 
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<SiteResponse> updateSite(@PathVariable UUID id, @RequestBody SiteRequest request) {
         return ResponseEntity.ok(siteService.updateSite(id, request));
     }
 
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSite(@PathVariable UUID id) {
         siteService.deleteSite(id);

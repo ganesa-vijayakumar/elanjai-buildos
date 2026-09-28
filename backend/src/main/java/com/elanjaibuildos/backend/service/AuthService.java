@@ -34,13 +34,15 @@ public class AuthService {
     private final JwtService jwt;
     private final PlatformMailService mail;
     private final PlatformGuard platformGuard;
+    private final com.elanjaibuildos.backend.repository.SiteRepository siteRepository;
 
     public AuthService(UserRepository users, InviteRepository invites,
                        PasswordResetRepository resets, PasswordEncoder encoder,
-                       JwtService jwt, PlatformMailService mail, PlatformGuard platformGuard) {
+                       JwtService jwt, PlatformMailService mail, PlatformGuard platformGuard,
+                       com.elanjaibuildos.backend.repository.SiteRepository siteRepository) {
         this.users = users; this.invites = invites; this.resets = resets;
         this.encoder = encoder; this.jwt = jwt; this.mail = mail;
-        this.platformGuard = platformGuard;
+        this.platformGuard = platformGuard; this.siteRepository = siteRepository;
     }
 
     public AuthenticationResponse login(String email, String rawPassword) {
@@ -112,7 +114,12 @@ public class AuthService {
     }
 
     private void linkClientToSite(UUID siteId, User client) {
-        // best-effort link via repository in same schema context
+        siteRepository.findById(siteId).ifPresent(site -> {
+            site.setClientUser(client);                 // D-049: one client per project
+            if (site.getClientName() == null) site.setClientName(client.getFullName());
+            if (site.getClientEmail() == null) site.setClientEmail(client.getEmail());
+            siteRepository.save(site);
+        });
     }
 
     // ---------- password reset ----------

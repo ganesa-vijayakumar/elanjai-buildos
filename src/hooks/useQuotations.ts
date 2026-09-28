@@ -3,6 +3,22 @@ import api from '../lib/api';
 import { Quotation, QuotationStatus, PackageName, StageBreakdown, DEFAULT_STAGES, PACKAGE_RATES } from '../lib/database.types';
 import { useAuth } from './useAuth';
 
+/** Tenant stage templates → StageBreakdown rows (fallback: DEFAULT_STAGES). */
+export async function fetchStageTemplates(totalValue = 0): Promise<StageBreakdown[]> {
+    try {
+        const { data } = await api.get('/masters/stage-templates');
+        if (Array.isArray(data) && data.length > 0) {
+            return data.map((t: any) => ({
+                stage: String(t.name).toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+                label: t.name,
+                percentage: Number(t.percentage) || 0,
+                amount: Math.round((Number(t.percentage) / 100) * totalValue),
+            }));
+        }
+    } catch { /* fallback */ }
+    return DEFAULT_STAGES.map(s => ({ ...s, amount: Math.round((s.percentage / 100) * totalValue) }));
+}
+
 interface UseQuotationsReturn {
     quotations: Quotation[];
     loading: boolean;
@@ -115,11 +131,8 @@ export function useQuotations(): UseQuotationsReturn {
             const rate = PACKAGE_RATES[input.package_name];
             const totalValue = input.builtup_area * rate;
 
-            // Calculate stage breakdown
-            const stageBreakdown: StageBreakdown[] = DEFAULT_STAGES.map(stage => ({
-                ...stage,
-                amount: Math.round((stage.percentage / 100) * totalValue),
-            }));
+            // Stage split from tenant templates (fallback: defaults)
+            const stageBreakdown: StageBreakdown[] = await fetchStageTemplates(totalValue);
 
             const payload = mapQuotationToBackend({
                 ...input,

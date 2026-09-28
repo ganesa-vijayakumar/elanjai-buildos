@@ -32,9 +32,15 @@ import {
     UsersThree,
     CheckCircle
 } from '@phosphor-icons/react'
-import { ConstructionStage, PaymentMode, ExpenseCategory, DEFAULT_STAGES } from '../../lib/database.types'
+import { PaymentMode, ExpenseCategory } from '../../lib/database.types'
+import { useSiteStages } from '../../hooks/useStages'
 import { SiteStatus } from '../../lib/database.types'
 import { SiteStatusBadge, SiteStatusActions } from '../SiteStatusBadge'
+import { LaborTabMVP } from './LaborTabMVP'
+import { MaterialsTabMVP } from './MaterialsTabMVP'
+import { PhotosTabMVP } from './PhotosTabMVP'
+import { ChangeRequestsTabMVP } from './ChangeRequestsTabMVP'
+import { EstimatorTabMVP } from './EstimatorTabMVP'
 import { MaterialSpentSection } from '../MaterialSpentSection'
 import { EstimatedMaterialExpenseWidget } from '../EstimatedMaterialExpenseWidget'
 
@@ -52,6 +58,7 @@ export function SiteDetailMVP({ siteId, onBack }: SiteDetailMVPProps) {
     const { collectionsByStage } = useCollectionsByStage(siteId)
     const { expenses, totalExpenses, addExpense, updateExpense } = useExpenses(siteId)
     const { expensesByCategory } = useExpensesByCategory(siteId)
+    const { stages: siteStages, updateStage, addStage, deleteStage, refetch: refetchStages } = useSiteStages(siteId)
 
     // For site managers, only show their own expenses
     const displayExpenses = role === 'site_manager' && user
@@ -68,9 +75,12 @@ export function SiteDetailMVP({ siteId, onBack }: SiteDetailMVPProps) {
     const [savingSite, setSavingSite] = useState(false)
 
     // Collection form state
+    const [showStageDialog, setShowStageDialog] = useState(false)
+    const [stageForm, setStageForm] = useState({ name: '', percentage: '', notes: '' })
+
     const [collectionForm, setCollectionForm] = useState({
         amount: '',
-        stage: '' as ConstructionStage | '',
+        stage_id: '' as string,
         payment_mode: 'upi' as PaymentMode,
         reference_number: '',
         notes: '',
@@ -155,10 +165,12 @@ export function SiteDetailMVP({ siteId, onBack }: SiteDetailMVPProps) {
             return
         }
 
+        const sel = siteStages.find(s => s.id === collectionForm.stage_id)
         const { error } = await addCollection({
             site_id: siteId,
             amount: Number(collectionForm.amount),
-            stage: collectionForm.stage as ConstructionStage || undefined,
+            stage_id: collectionForm.stage_id || null,
+            stage: sel?.name || null,
             payment_mode: collectionForm.payment_mode,
             reference_number: collectionForm.reference_number || undefined,
             notes: collectionForm.notes || undefined,
@@ -172,7 +184,7 @@ export function SiteDetailMVP({ siteId, onBack }: SiteDetailMVPProps) {
             setShowCollectionDialog(false)
             setCollectionForm({
                 amount: '',
-                stage: '',
+                stage_id: '',
                 payment_mode: 'upi',
                 reference_number: '',
                 notes: '',
@@ -412,35 +424,123 @@ export function SiteDetailMVP({ siteId, onBack }: SiteDetailMVPProps) {
                 currentRole={role}
             />
 
-            {/* Stage-wise Progress */}
+            {/* Stage-wise Progress — live site_stages (editable) */}
             <Card>
-                <CardHeader>
-                    <CardTitle className="text-lg">Stage-wise Progress</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-lg">Construction Stages</CardTitle>
+                    {(role === 'owner' || role === 'admin') && (
+                        <Button variant="outline" size="sm" onClick={() => setShowStageDialog(true)}>
+                            <Plus className="w-4 h-4 mr-1" /> Add Stage
+                        </Button>
+                    )}
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-4">
-                        {DEFAULT_STAGES.map((stage) => {
-                            const stageCollections = collectionsByStage[stage.stage]?.total || 0
-                            const expectedAmount = site.total_value ? (stage.percentage / 100) * site.total_value : 0
-                            const progress = expectedAmount > 0 ? (stageCollections / expectedAmount) * 100 : 0
-
-                            return (
-                                <div key={stage.stage} className="space-y-2">
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-gray-700 font-medium">{stage.label}</span>
-                                        <div className="text-right">
-                                            <span className="text-gray-900 font-medium">{formatCurrency(stageCollections)}</span>
-                                            <span className="text-gray-400 mx-1">/</span>
-                                            <span className="text-gray-500">{formatCurrency(expectedAmount)}</span>
+                    {siteStages.length === 0 ? (
+                        <p className="text-center text-gray-500 py-6">No stages configured for this site.</p>
+                    ) : (
+                        <div className="space-y-0.5">
+                            {siteStages.map((st, idx) => {
+                                const collected = collectionsByStage[st.name]?.total || 0
+                                const expected = st.budgetAmount
+                                    ?? (site.total_value ? (Number(st.percentage) / 100) * site.total_value : 0)
+                                const progress = expected > 0 ? (collected / expected) * 100 : 0
+                                const canEdit = role === 'owner' || role === 'admin' || role === 'site_manager'
+                                return (
+                                    <div key={st.id} className="flex items-start gap-3 py-3 border-b border-gray-100 last:border-0">
+                                        {/* timeline rail */}
+                                        <div className="flex flex-col items-center pt-1">
+                                            <div className={`w-4 h-4 rounded-full border-2 ${
+                                                st.status === 'done' ? 'bg-emerald-500 border-emerald-500'
+                                                : st.status === 'in_progress' ? 'bg-indigo-500 border-indigo-500'
+                                                : 'bg-white border-gray-300'}`} />
+                                            {idx < siteStages.length - 1 && <div className="w-0.5 flex-1 bg-gray-200 mt-1 min-h-6" />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <p className="font-medium text-gray-900 truncate">{st.name}</p>
+                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                                        st.status === 'done' ? 'bg-emerald-100 text-emerald-700'
+                                                        : st.status === 'in_progress' ? 'bg-indigo-100 text-indigo-700'
+                                                        : 'bg-gray-100 text-gray-500'}`}>
+                                                        {st.status === 'done' ? 'Done' : st.status === 'in_progress' ? 'In progress' : 'Pending'}
+                                                    </span>
+                                                </div>
+                                                {canEdit && (
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        {st.status !== 'in_progress' && st.status !== 'done' && (
+                                                            <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
+                                                                onClick={() => updateStage(st.id, { status: 'in_progress' })}>
+                                                                Start</Button>
+                                                        )}
+                                                        {st.status === 'in_progress' && (
+                                                            <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-emerald-700 border-emerald-200"
+                                                                onClick={() => updateStage(st.id, { status: 'done' })}>
+                                                                Complete</Button>
+                                                        )}
+                                                        {(role === 'owner' || role === 'admin') && (
+                                                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500"
+                                                                onClick={() => window.confirm(`Delete stage "${st.name}"?`) && deleteStage(st.id)}>
+                                                                ✕</Button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="mt-1.5 flex items-center justify-between text-xs text-gray-500">
+                                                <span>{Number(st.percentage).toFixed(1)}% of project</span>
+                                                <span>{formatCurrency(collected)} / {formatCurrency(expected)}</span>
+                                            </div>
+                                            <Progress value={Math.min(progress, 100)} className="h-1.5 mt-1" />
                                         </div>
                                     </div>
-                                    <Progress value={Math.min(progress, 100)} className="h-2" />
-                                </div>
-                            )
-                        })}
-                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
                 </CardContent>
             </Card>
+
+            {/* Add Stage Dialog */}
+            <Dialog open={showStageDialog} onOpenChange={setShowStageDialog}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader><DialogTitle>Add Stage</DialogTitle></DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div>
+                            <Label>Stage name *</Label>
+                            <Input value={stageForm.name}
+                                onChange={e => setStageForm({ ...stageForm, name: e.target.value })}
+                                placeholder="e.g. Waterproofing" />
+                        </div>
+                        <div>
+                            <Label>Percentage of project (%)</Label>
+                            <Input type="number" value={stageForm.percentage}
+                                onChange={e => setStageForm({ ...stageForm, percentage: e.target.value })}
+                                placeholder="5" />
+                        </div>
+                        <div>
+                            <Label>Notes</Label>
+                            <Textarea value={stageForm.notes}
+                                onChange={e => setStageForm({ ...stageForm, notes: e.target.value })} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowStageDialog(false)}>Cancel</Button>
+                        <Button onClick={async () => {
+                            if (!stageForm.name) { toast.error('Stage name required'); return }
+                            try {
+                                await addStage({
+                                    name: stageForm.name,
+                                    percentage: Number(stageForm.percentage || 0),
+                                    notes: stageForm.notes || undefined,
+                                })
+                                toast.success('Stage added')
+                                setShowStageDialog(false)
+                                setStageForm({ name: '', percentage: '', notes: '' })
+                            } catch { toast.error('Failed to add stage') }
+                        }}>Add Stage</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Transactions */}
             <Card>
@@ -469,7 +569,7 @@ export function SiteDetailMVP({ siteId, onBack }: SiteDetailMVPProps) {
                                             >
                                                 <div>
                                                     <p className="font-medium text-gray-900">
-                                                        {collection.stage ? DEFAULT_STAGES.find(s => s.stage === collection.stage)?.label : 'General'}
+                                                        {collection.stage || 'General'}
                                                     </p>
                                                     <p className="text-xs text-gray-500">
                                                         {new Date(collection.received_date).toLocaleDateString('en-IN')} • {collection.payment_mode?.toUpperCase()}
@@ -568,6 +668,26 @@ export function SiteDetailMVP({ siteId, onBack }: SiteDetailMVPProps) {
                 </CardContent>
             </Card>
 
+            {/* Site operations: labor, materials, photos, change requests, estimator */}
+            <Card>
+                <CardContent className="pt-6">
+                    <Tabs defaultValue="labor">
+                        <TabsList className="grid w-full grid-cols-5 mb-4">
+                            <TabsTrigger value="labor">Labor</TabsTrigger>
+                            <TabsTrigger value="materials">Materials</TabsTrigger>
+                            <TabsTrigger value="photos">Photos</TabsTrigger>
+                            <TabsTrigger value="changes">Changes</TabsTrigger>
+                            <TabsTrigger value="estimator">Estimator</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="labor"><LaborTabMVP siteId={siteId} /></TabsContent>
+                        <TabsContent value="materials"><MaterialsTabMVP siteId={siteId} /></TabsContent>
+                        <TabsContent value="photos"><PhotosTabMVP siteId={siteId} /></TabsContent>
+                        <TabsContent value="changes"><ChangeRequestsTabMVP siteId={siteId} /></TabsContent>
+                        <TabsContent value="estimator"><EstimatorTabMVP siteId={siteId} /></TabsContent>
+                    </Tabs>
+                </CardContent>
+            </Card>
+
             {/* Add Collection Dialog */}
             <Dialog open={showCollectionDialog} onOpenChange={setShowCollectionDialog}>
                 <DialogContent>
@@ -587,16 +707,16 @@ export function SiteDetailMVP({ siteId, onBack }: SiteDetailMVPProps) {
                         <div>
                             <Label>Stage</Label>
                             <Select
-                                value={collectionForm.stage}
-                                onValueChange={(v) => setCollectionForm({ ...collectionForm, stage: v as ConstructionStage })}
+                                value={collectionForm.stage_id}
+                                onValueChange={(v) => setCollectionForm({ ...collectionForm, stage_id: v })}
                             >
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Select stage" />
+                                    <SelectValue placeholder="Select stage (optional)" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {DEFAULT_STAGES.map((stage) => (
-                                        <SelectItem key={stage.stage} value={stage.stage}>
-                                            {stage.label}
+                                    {siteStages.map((st) => (
+                                        <SelectItem key={st.id} value={st.id}>
+                                            {st.name}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

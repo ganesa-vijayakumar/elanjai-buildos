@@ -11,9 +11,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+
 @RestController
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
 public class DashboardController {
 
     private final DashboardService dashboardService;

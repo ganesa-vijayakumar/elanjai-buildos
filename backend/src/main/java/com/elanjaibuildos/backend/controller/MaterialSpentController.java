@@ -5,6 +5,7 @@ import com.elanjaibuildos.backend.dto.MaterialSpentResponse;
 import com.elanjaibuildos.backend.service.MaterialSpentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/material-spent")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
 public class MaterialSpentController {
 
     private final MaterialSpentService materialSpentService;

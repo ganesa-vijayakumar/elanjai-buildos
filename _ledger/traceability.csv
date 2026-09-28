@@ -1,42 +1,42 @@
 REQ_ID,FEATURE,EST_ID,ARTIFACT,TEST_ID,BUG_ID,STATUS
-REQ-001,Public tenant signup,,,,,planned
-REQ-002,Slug validation,,,,,planned
-REQ-003,Approval queue,,,,,planned
-REQ-004,Schema provisioning,,,,,planned
-REQ-005,Welcome + setup wizard,,,,,planned
-REQ-006,Tenant lifecycle engine,,,,,planned
-REQ-010,Plan catalog,,,,,planned
-REQ-011,Razorpay checkout,,,,,planned
-REQ-012,14-day trial,,,,,planned
-REQ-013,Webhook handler,,,,,planned
-REQ-014,GST invoices,,,,,planned
-REQ-015,Plan change,,,,,planned
-REQ-016,Offboarding export,,,,,planned
-REQ-017,Dunning,,,,,planned
-REQ-020,Feature flags,,,,,planned
-REQ-021,Usage limits,,,,,planned
-REQ-022,Usage metering,,,,,planned
-REQ-030,Platform login,,,,,planned
-REQ-031,Tenant list/detail,,,,,planned
-REQ-032,Approvals UI,,,,,planned
-REQ-033,Plan management UI,,,,,planned
-REQ-034,Subscriptions/MRR dashboard,,,,,planned
-REQ-035,Suspend/reactivate/offboard,,,,,planned
-REQ-036,Platform settings,,,,,planned
-REQ-037,Support read-only views,,,,,planned
-REQ-040,Tenant auth + invites,,,,,planned
-REQ-041,Role dashboards,,,,,planned
-REQ-042,Quotation engine,,,,,planned
-REQ-043,Agreement generation,,,,,planned
-REQ-044,Project creation wizard,,,,,planned
-REQ-045,Site tracking,,,,,planned
-REQ-046,Labor attendance/wages,,,,,planned
-REQ-047,Material estimator,,,,,planned
-REQ-048,Material tracking,,,,,planned
-REQ-049,Reports + CSV,,,,,planned
-REQ-050,Settings masters,,,,,planned
-REQ-051,Client portal,,,,,planned
-REQ-052,Site photos,,,,,planned
-REQ-053,In-app notifications,,,,,planned
-REQ-054,Tenant branding,,,,,planned
-REQ-055,Tenant billing page,,,,,planned
+REQ-001,Public tenant signup,,,,,verified
+REQ-002,Slug validation,,,,,verified
+REQ-003,Approval queue,,,,,verified
+REQ-004,Schema provisioning,,,,,verified
+REQ-005,Welcome + setup wizard,,,,,verified
+REQ-006,Tenant lifecycle engine,,,,,verified
+REQ-010,Plan catalog,,,,,verified
+REQ-011,Razorpay checkout,,,,,implemented-pending-live-keys
+REQ-012,14-day trial,,,,,verified
+REQ-013,Webhook handler,,,,,verified
+REQ-014,GST invoices,,,"GST invoice verified: checkout -> INV-2026-00001 (%PDF-1.4): taxable 4999.00, CGST 9% 449.91 + SGST 9% 449.91 = 5898.82. Downloads: GET /api/billing/invoices/{id}/pdf (tenant-scoped, 200), /api/admin/invoices/{id}/pdf + /api/platform/invoices/{id}/pdf (platform, 200). UI: PDF buttons in TenantBilling + AdminConsole tenant detail.",,verified
+REQ-015,Plan change,,,,,verified
+REQ-016,Offboarding export,,,"Offboard export E2E: offboard -> exports/zenith.zip + duntest.zip (33 CSVs each, real data). Download: GET /api/admin/tenants/{id}/export -> 200 application/zip 9277B, path-traversal-guarded; support role 403. Admin UI: Download export button on OFFBOARDED tenants. Retention purge added: hourly sweep drops tenant schema after app.tenancy.retention-days (30d); verified t_duntest dropped + tenant.purged audit entry. Boot race fixed: migrateAllTenants skips OFFBOARDED + migrate() no-ops on missing schema.",,verified
+REQ-017,Dunning,,,"Dunning sweep E2E: expired trial -> GRACE (grace window + payment_failed email via Mailpit); GRACE semantics: login allowed, GET 200, writes 403 TENANT_READ_ONLY, billing/checkout allowed; grace elapsed -> SUSPENDED + login TENANT_INACTIVE; TenantLifecycleGuardFilter fixed (GRACE write-allowlist for auth+billing)",,verified
+REQ-020,Feature flags,,,,,verified
+REQ-021,Usage limits,,,,,verified
+REQ-022,Usage metering,,,,,verified
+REQ-030,Platform login,,,,,verified
+REQ-031,Tenant list/detail,,,,,verified
+REQ-032,Approvals UI,,,,,verified
+REQ-033,Plan management UI,,,,,verified
+REQ-034,Subscriptions/MRR dashboard,,,,,verified
+REQ-035,Suspend/reactivate/offboard,,,,,verified
+REQ-036,Platform settings,,,,,verified
+REQ-037,Support read-only views,,,"PlatformSupportController /api/platform/** read-only (dashboard/tenants/plans/subscriptions/invoices/audit); PLATFORM_SUPPORT seeded; AdminConsole role-aware (support reads via /platform, mutations + admin-only pages hidden); PlatformAuditLog getters added (was serializing id only); verified: reads 200, admin mutations 403",,verified
+REQ-040,Tenant auth + invites,,,,,verified
+REQ-041,Role dashboards,,,,,verified
+REQ-042,Quotation engine,,,,,verified
+REQ-043,Agreement generation,,,,,verified
+REQ-044,Project creation wizard,,,,,verified
+REQ-045,Site tracking,,,,,verified
+REQ-046,Labor attendance/wages,,,,,verified
+REQ-047,Material estimator,,,,,verified
+REQ-048,Material tracking,,,,,verified
+REQ-049,Reports + CSV,,,,,verified
+REQ-050,Settings masters,,,,,verified
+REQ-051,Client portal,,,,,verified
+REQ-052,Site photos,,,,,verified
+REQ-053,In-app notifications,,,,,verified
+REQ-054,Tenant branding,,,,,verified
+REQ-055,Tenant billing page,,,,,verified

@@ -41,6 +41,9 @@ public class TenantLifecycleService {
     @Value("${app.tenancy.grace-days:7}")
     private int graceDays;
 
+    @Value("${app.tenancy.retention-days:30}")
+    private int retentionDays;
+
     public TenantLifecycleService(TenantRepository tenants, SubscriptionRepository subscriptions,
                                   InvoiceRepository invoices, PlatformMailService mail,
                                   AuditService audit, TenantSchemaProvisioner provisioner) {
@@ -73,6 +76,25 @@ public class TenantLifecycleService {
                 transition(t, Tenant.Status.SUSPENDED, "grace period elapsed");
             }
         }
+        purgeExpiredOffboards(now);
+    }
+
+    /** Retention: OFFBOARDED tenants keep their schema for retention-days, then it is dropped. */
+    private void purgeExpiredOffboards(Instant now) {
+        for (Tenant t : tenants.findByStatus(Tenant.Status.OFFBOARDED)) {
+            if (t.getOffboardedAt() == null
+                    || !t.getOffboardedAt().plus(retentionDays, ChronoUnit.DAYS).isBefore(now)) continue;
+            String schema = TenantSchemaProvisioner.schemaFor(t.getSlug());
+            if (!provisioner.schemaExists(schema)) continue; // already purged — keep sweep idempotent
+            try {
+                provisioner.drop(t.getSlug());
+                audit.logSystem("tenant.purged", "tenant", t.getId().toString(),
+                        Map.of("schema", schema, "retentionDays", retentionDays));
+                log.info("Purged tenant schema {} after {}d retention", schema, retentionDays);
+            } catch (Exception e) {
+                log.error("Tenant schema purge failed for {}", schema, e);
+            }
+        }
     }
 
     /** Payment confirmed → activate/renew tenant. Called by webhook + manual paths. */
@@ -87,8 +109,14 @@ public class TenantLifecycleService {
             sub.setStatus(Subscription.Status.ACTIVE);
             sub.setCurrentPeriodStart(Instant.now());
             sub.setCurrentPeriodEnd(newPeriodEnd);
-            // apply scheduled downgrade at renewal (D-051)
-            if (sub.getScheduledPlan() != null) {
+            if (invoice != null && invoice.getPlan() != null) {
+                // plan bought by this invoice applies immediately (D-051 upgrades)
+                sub.setPlan(invoice.getPlan());
+                sub.setScheduledPlan(null);
+                tenant.setPlan(invoice.getPlan());
+                tenants.save(tenant);
+            } else if (sub.getScheduledPlan() != null) {
+                // apply scheduled downgrade at renewal (D-051)
                 sub.setPlan(sub.getScheduledPlan());
                 sub.setScheduledPlan(null);
                 tenant.setPlan(sub.getPlan());

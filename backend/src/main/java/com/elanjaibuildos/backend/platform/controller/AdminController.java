@@ -1,15 +1,22 @@
 package com.elanjaibuildos.backend.platform.controller;
 
+import com.elanjaibuildos.backend.platform.model.Invoice;
 import com.elanjaibuildos.backend.platform.model.Plan;
 import com.elanjaibuildos.backend.platform.model.SignupRequest;
 import com.elanjaibuildos.backend.platform.model.Tenant;
 import com.elanjaibuildos.backend.platform.repository.*;
 import com.elanjaibuildos.backend.platform.service.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -23,7 +30,6 @@ public class AdminController {
     private final PlanRepository plans;
     private final SubscriptionRepository subscriptions;
     private final InvoiceRepository invoices;
-    private final UsageCounterRepository usage;
     private final PlatformAuditLogRepository auditRepo;
     private final PlatformSettingRepository settings;
     private final SignupService signupService;
@@ -31,14 +37,17 @@ public class AdminController {
     private final UsageService usageService;
     private final ExportService exportService;
 
+    @Value("${app.storage.root:./data/files}")
+    private String storageRoot;
+
     public AdminController(TenantRepository tenants, SignupRequestRepository signups,
                            PlanRepository plans, SubscriptionRepository subscriptions,
-                           InvoiceRepository invoices, UsageCounterRepository usage,
+                           InvoiceRepository invoices,
                            PlatformAuditLogRepository auditRepo, PlatformSettingRepository settings,
                            SignupService signupService, TenantLifecycleService lifecycle,
                            UsageService usageService, ExportService exportService) {
         this.tenants = tenants; this.signups = signups; this.plans = plans;
-        this.subscriptions = subscriptions; this.invoices = invoices; this.usage = usage;
+        this.subscriptions = subscriptions; this.invoices = invoices;
         this.auditRepo = auditRepo; this.settings = settings;
         this.signupService = signupService; this.lifecycle = lifecycle;
         this.usageService = usageService;
@@ -77,8 +86,9 @@ public class AdminController {
         Map<String, Object> m = new LinkedHashMap<>(tenantView(t));
         m.put("usage", usageService.snapshot(t));
         m.put("invoices", invoices.findByTenant_IdOrderByCreatedAtDesc(id).stream()
-                .map(i -> Map.of("number", i.getInvoiceNumber(), "total", i.getTotalInr(),
-                        "status", i.getStatus().name(), "issuedAt", String.valueOf(i.getIssuedAt())))
+                .map(i -> Map.of("id", i.getId(), "number", i.getInvoiceNumber(), "total", i.getTotalInr(),
+                        "status", i.getStatus().name(), "issuedAt", String.valueOf(i.getIssuedAt()),
+                        "pdf", i.getPdfPath() != null))
                 .toList());
         subscriptions.findTopByTenant_IdOrderByCreatedAtDesc(id).ifPresent(s ->
                 m.put("subscription", Map.of("status", s.getStatus().name(),
@@ -116,6 +126,40 @@ public class AdminController {
         exportService.exportTenant(t);                      // F-016: CSV ZIP before offboard
         lifecycle.offboard(t, actorId(auth));
         return ResponseEntity.ok(Map.of("status", t.getStatus().name()));
+    }
+
+    /** Download the CSV export ZIP produced at offboard time (REQ-016). */
+    @GetMapping("/tenants/{id}/export")
+    public ResponseEntity<Resource> downloadExport(@PathVariable UUID id) {
+        Tenant t = tenants.findById(id).orElseThrow(() -> new NoSuchElementException("tenant"));
+        Path zip = safeResolve("exports", t.getSlug() + ".zip");
+        if (!Files.isRegularFile(zip)) throw new NoSuchElementException("export not found — tenant may not be offboarded yet");
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zip.getFileName() + "\"")
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .body(new FileSystemResource(zip));
+    }
+
+    /** Download a GST invoice PDF (platform-side copy). */
+    @GetMapping("/invoices/{id}/pdf")
+    public ResponseEntity<Resource> downloadInvoicePdf(@PathVariable UUID id) {
+        Invoice inv = invoices.findById(id).orElseThrow(() -> new NoSuchElementException("invoice"));
+        if (inv.getPdfPath() == null || !inv.getPdfPath().startsWith("public/invoices/"))
+            throw new NoSuchElementException("invoice pdf");
+        Path pdf = safeResolve("invoices", Path.of(inv.getPdfPath()).getFileName().toString());
+        if (!Files.isRegularFile(pdf)) throw new NoSuchElementException("invoice pdf file");
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + pdf.getFileName() + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(new FileSystemResource(pdf));
+    }
+
+    /** Resolve <storage>/public/<dir>/<name> and refuse anything escaping that dir. */
+    private Path safeResolve(String dir, String name) {
+        Path base = Path.of(storageRoot, "public", dir).toAbsolutePath().normalize();
+        Path p = base.resolve(name).normalize();
+        if (!p.startsWith(base)) throw new IllegalArgumentException("bad path");
+        return p;
     }
 
     @PostMapping("/tenants/{id}/retry-provisioning")

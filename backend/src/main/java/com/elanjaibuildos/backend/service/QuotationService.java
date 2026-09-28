@@ -2,7 +2,6 @@ package com.elanjaibuildos.backend.service;
 
 import com.elanjaibuildos.backend.dto.QuotationRequest;
 import com.elanjaibuildos.backend.dto.QuotationResponse;
-import com.elanjaibuildos.backend.model.ConstructionStage;
 import com.elanjaibuildos.backend.model.Quotation;
 import com.elanjaibuildos.backend.model.QuotationStatus;
 import com.elanjaibuildos.backend.model.Site;
@@ -32,6 +31,7 @@ public class QuotationService {
     private final SiteRepository siteRepository;
     private final UserRepository userRepository;
     private final com.elanjaibuildos.backend.platform.service.PlatformGuard platformGuard;
+    private final StageService stageService;
 
     public List<QuotationResponse> getAllQuotations() {
         return quotationRepository.findAll().stream()
@@ -109,7 +109,6 @@ public class QuotationService {
                 .ratePerSqft(quotation.getRatePerSqft())
                 .packageName(quotation.getPackageName())
                 .totalValue(quotation.getTotalValue())
-                .currentStage(ConstructionStage.ADVANCE)
                 .status(SiteStatus.IN_PROGRESS)
                 .startDate(LocalDate.now())
                 // expectedEndDate typically calculated, leave null or set default duration
@@ -117,6 +116,13 @@ public class QuotationService {
                 .build();
 
         Site savedSite = siteRepository.save(site);
+        // Prefer the quotation's own stage split; fall back to tenant templates
+        if (stageService.copyBreakdownToSite(savedSite, quotation.getStageBreakdown()) == 0) {
+            stageService.copyTemplateToSite(savedSite);
+        }
+        // currentStage = first stage of the copied set
+        stageService.forSite(savedSite.getId()).stream().findFirst()
+                .ifPresent(s -> { savedSite.setCurrentStage(s.getName()); siteRepository.save(savedSite); });
 
         // Update Quotation
         quotation.setStatus(QuotationStatus.CONVERTED);

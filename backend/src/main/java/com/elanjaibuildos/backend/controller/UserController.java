@@ -22,6 +22,7 @@ public class UserController {
 
     private final UserService userService;
     private final AuthService authService;
+    private final com.elanjaibuildos.backend.repository.InviteRepository inviteRepository;
 
     @GetMapping
     public ResponseEntity<List<UserResponse>> getAllUsers(
@@ -77,6 +78,21 @@ public class UserController {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "BAD_REQUEST", "message", e.getMessage()));
         }
+    }
+
+    /** Pending invites — shown in the Users page. */
+    @GetMapping("/invites")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
+    public ResponseEntity<?> pendingInvites() {
+        return ResponseEntity.ok(inviteRepository.findByAcceptedAtIsNullOrderByCreatedAtDesc());
+    }
+
+    /** Revoke a pending invite. */
+    @DeleteMapping("/invites/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
+    public ResponseEntity<Void> revokeInvite(@PathVariable UUID id) {
+        inviteRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 
     private UUID actorId(Authentication auth) {
