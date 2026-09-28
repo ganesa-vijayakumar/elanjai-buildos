@@ -58,6 +58,9 @@ check "unknown workspace" "$APEX_HOST"            "/api/public/tenants/nope-xyz/
 check_code "tenant auth surface" "$SLUG.$BASE_DOMAIN" "/api/auth/me" "403"
 check_code "admin auth surface"  "$ADMIN_HOST"        "/api/admin/dashboard" "403"
 
+# --- tenant spoof: query params and edge headers cannot resolve a tenant ---
+check_code "?tenant= ignored (apex)" "$APEX_HOST" "/api/auth/me?tenant=$SLUG" "403"
+
 # --- uptime probe: backend health reachable through the edge on every host ---
 check "backend health (apex)"   "$APEX_HOST"           "/api/actuator/health" '"status":"UP"'
 check "backend health (tenant)" "$SLUG.$BASE_DOMAIN"   "/api/actuator/health" '"status":"UP"'
