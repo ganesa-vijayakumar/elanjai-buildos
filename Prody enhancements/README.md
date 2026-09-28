@@ -91,3 +91,20 @@ landing image. It must never rebuild or restart the tenant app, admin app, or ba
 - [x] All intra-doc and repo-relative links resolve.
 - [x] `git diff --check` clean; `git status` shows only new files under
   `Prody enhancements/`.
+
+## Implementation status
+
+| Area | State | Commit |
+|---|---|---|
+| Backend modular-monolith reorganization (01-architecture/03) | Done — feature packages (`identity`, `sites`, `billing`, `quotations`, `reports`, `files`, `tenancy`, `platform`, `common`) | `2cd491d` |
+| Phase A isolation/provisioning hardening (02-tenancy P0 items) | Done — quoted schema identifiers, exception-safe search_path reset, realm/path enforcement, dev-header fail-closed, env CORS, workspace-status endpoint, idempotent approve, drop guard, parameterized mail links | `4e27d4e` |
+| Backend verification suite (04-quality/02) | Done — 24 tests (9 unit surefire + 15 failsafe IT) green under `mvn verify` (Java 25, Postgres 16) | `765c5ab` |
+| Frontend split into three workspace apps (01-architecture/02) | Done — `apps/landing`, `apps/tenant`, `apps/admin`, `packages/shared`; realm-scoped storage keys; `/login` directory + workspace guard | `a073f84`, `82e6ef0`, `eeaa9f5` |
+| Independent delivery (03-deployment/01) | Done — per-app Dockerfiles/nginx, `deploy/gateway.conf`, compose topology, path-scoped CI workflows | `64cfb36` |
+| `<local>@<slug>` username rollout (02-tenancy/01) | **Not started** — Phase B; backend login still accepts email only (the documented transition path) | — |
+| Durable/resumable provisioning, backups, digest promotion, SEO/observability | **Not started** — Phase B/C per the phase map | — |
+
+Verified end-to-end on `develop`: all four images build; `docker compose up`
+serves landing at apex/www, admin at `admin.<base>`, and the shared workspace at
+`<slug>.<base>` through the gateway; the workspace-status endpoint answers
+through the full proxy chain; unknown workspaces return 404/WorkspaceNotFound.
