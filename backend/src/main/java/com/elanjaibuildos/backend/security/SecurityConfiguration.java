@@ -44,6 +44,7 @@ public class SecurityConfiguration {
             .authorizeHttpRequests(auth -> auth
                 // public realm
                 .requestMatchers("/api/public/**", "/", "/error").permitAll()
+                .requestMatchers("/api/actuator/health").permitAll()
                 .requestMatchers("/webhooks/**").permitAll()
                 // platform admin realm
                 .requestMatchers("/api/admin/auth/login").permitAll()

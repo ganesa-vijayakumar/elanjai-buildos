@@ -58,6 +58,10 @@ check "unknown workspace" "$APEX_HOST"            "/api/public/tenants/nope-xyz/
 check_code "tenant auth surface" "$SLUG.$BASE_DOMAIN" "/api/auth/me" "403"
 check_code "admin auth surface"  "$ADMIN_HOST"        "/api/admin/dashboard" "403"
 
+# --- uptime probe: backend health reachable through the edge on every host ---
+check "backend health (apex)"   "$APEX_HOST"           "/api/actuator/health" '"status":"UP"'
+check "backend health (tenant)" "$SLUG.$BASE_DOMAIN"   "/api/actuator/health" '"status":"UP"'
+
 # --- landing seo + version surfaces ---
 check "robots.txt"    "$APEX_HOST" "/robots.txt"  "User-agent"
 check_code "version stamp" "$APEX_HOST" "/version.txt" "200"
