@@ -101,3 +101,7 @@ temp/
 .file-manifest
 pids
 .spark-workbench-id
+
+# Database backup dumps (backup-db.sh) — contain tenant data, never commit
+backups/
+*.dump
