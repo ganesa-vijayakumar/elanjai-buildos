@@ -1,0 +1,35 @@
+name: frontend-tenant
+
+on:
+    push:
+        branches: [main, develop]
+        paths:
+            - 'apps/tenant/**'
+            - 'packages/shared/**'
+            - 'package.json'
+            - 'package-lock.json'
+            - 'tsconfig.base.json'
+            - '.github/workflows/tenant.yml'
+    pull_request:
+        paths:
+            - 'apps/tenant/**'
+            - 'packages/shared/**'
+            - 'package.json'
+            - 'package-lock.json'
+            - 'tsconfig.base.json'
+            - '.github/workflows/tenant.yml'
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: npm
+            - run: npm ci
+            - name: Typecheck + bundle
+              run: npm run build -w @buildos/tenant
+            - name: Docker image (build-only)
+              run: docker build -f apps/tenant/Dockerfile -t buildos-tenant:ci .

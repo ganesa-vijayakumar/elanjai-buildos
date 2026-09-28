@@ -1,0 +1,37 @@
+name: frontend-landing
+
+# Landing-only changes produce only the landing artifact — the tenant and
+# admin pipelines do not run for paths outside their scope.
+on:
+    push:
+        branches: [main, develop]
+        paths:
+            - 'apps/landing/**'
+            - 'packages/shared/**'
+            - 'package.json'
+            - 'package-lock.json'
+            - 'tsconfig.base.json'
+            - '.github/workflows/landing.yml'
+    pull_request:
+        paths:
+            - 'apps/landing/**'
+            - 'packages/shared/**'
+            - 'package.json'
+            - 'package-lock.json'
+            - 'tsconfig.base.json'
+            - '.github/workflows/landing.yml'
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: npm
+            - run: npm ci
+            - name: Typecheck + bundle
+              run: npm run build -w @buildos/landing
+            - name: Docker image (build-only)
+              run: docker build -f apps/landing/Dockerfile -t buildos-landing:ci .

@@ -47,7 +47,10 @@ services:
       MAIL_FROM: no-reply@elanjai.local
       TENANT_BASE_DOMAIN: localhost
       TENANT_ADMIN_HOST: admin.localhost
-      TENANT_DEV_HEADER: "true"
+      TENANT_DEV_HEADER: "true"          # dev compose only — production leaves this unset/false
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost}
+      TENANT_URL_TEMPLATE: ${TENANT_URL_TEMPLATE:-http://{slug}.localhost}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:5174,http://localhost:5175,http://*.localhost:5173,http://*.localhost:5174,http://*.localhost:5175}
       RAZORPAY_ENABLED: "false"
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
@@ -60,17 +63,63 @@ services:
     volumes:
       - app-files:/data/files
 
-  frontend:
+  # ----- independently deployable frontend apps -----
+  # Each builds only its own sources; a landing-only change rebuilds `landing`
+  # and nothing else.
+
+  landing:
     build:
       context: .
-      dockerfile: Dockerfile.frontend
-    container_name: elanjai-frontend
+      dockerfile: apps/landing/Dockerfile
+      args:
+        VITE_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-localhost}
+        VITE_ADMIN_HOST: ${TENANT_ADMIN_HOST:-admin.localhost}
+    container_name: elanjai-landing
+    ports:
+      - "5173:80"      # direct access for debugging
     depends_on:
       - backend
-    environment:
-      VITE_API_BASE_URL: http://localhost:8080/api
+
+  tenant:
+    build:
+      context: .
+      dockerfile: apps/tenant/Dockerfile
+      args:
+        VITE_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-localhost}
+        VITE_ADMIN_HOST: ${TENANT_ADMIN_HOST:-admin.localhost}
+    container_name: elanjai-tenant
     ports:
-      - "5173:5173"
+      - "5175:80"
+    depends_on:
+      - backend
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      args:
+        VITE_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-localhost}
+        VITE_ADMIN_HOST: ${TENANT_ADMIN_HOST:-admin.localhost}
+    container_name: elanjai-admin
+    ports:
+      - "5174:80"
+    depends_on:
+      - backend
+
+  # Edge router — apex/www → landing, admin.* → admin, <slug>.* → tenant.
+  # *.localhost resolves to 127.0.0.1, so http://acme.localhost works locally.
+  gateway:
+    image: nginx:alpine
+    container_name: elanjai-gateway
+    volumes:
+      - ./deploy/gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      - landing
+      - tenant
+      - admin
+      - backend
 
 volumes:
   pgdata:
