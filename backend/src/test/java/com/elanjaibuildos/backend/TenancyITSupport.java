@@ -63,6 +63,11 @@ public abstract class TenancyITSupport {
         return jwt.generatePlatformToken("admin@elanjai.local", "PLATFORM_ADMIN");
     }
 
+    /** Register an out-of-band tenant slug (not created via provisionTenant) for cleanup. */
+    protected void trackForCleanup(String slug) {
+        created.add(slug);
+    }
+
     @BeforeEach
     void clearContext() {
         TenantContext.clear();
