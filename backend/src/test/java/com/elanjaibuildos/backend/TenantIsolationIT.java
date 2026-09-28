@@ -23,8 +23,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class TenantIsolationIT extends TenancyITSupport {
 
     private static final String ALPHA = "it-alpha";
+    private static final String BETA = "it-beta";
     private static final String SHOPX = "it-shop-x"; // hyphenated: exercises quoted identifiers
     private static final String ALPHA_EMAIL = "owner@it-alpha.test";
+    private static final String BETA_EMAIL = "owner@it-beta.test";
 
     @Test
     void hyphenatedTenantProvisionsLoginAndIsolates() throws Exception {
@@ -143,6 +145,28 @@ class TenantIsolationIT extends TenancyITSupport {
              ResultSet rs = s.executeQuery("SHOW search_path")) {
             rs.next();
             assertEquals("public", rs.getString(1));
+        }
+
+        // repeated borrows across schemas — the reset must hold on every release,
+        // not just once after a failure
+        provisionTenant(BETA, BETA_EMAIL);
+        for (int i = 0; i < 3; i++) {
+            for (String schema : new String[] { "t_it-alpha", "t_it-beta" }) {
+                Connection conn = provider.getConnection(schema);
+                try (Statement s = conn.createStatement();
+                     ResultSet rs = s.executeQuery("SHOW search_path")) {
+                    rs.next();
+                    assertTrue(rs.getString(1).contains(schema),
+                            "borrow " + i + " for " + schema);
+                }
+                provider.releaseConnection(schema, conn);
+            }
+            try (Connection next = provider.getAnyConnection();
+                 Statement s = next.createStatement();
+                 ResultSet rs = s.executeQuery("SHOW search_path")) {
+                rs.next();
+                assertEquals("public", rs.getString(1), "after release round " + i);
+            }
         }
     }
 
