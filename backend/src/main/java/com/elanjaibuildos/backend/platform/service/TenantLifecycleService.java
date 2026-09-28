@@ -156,23 +156,10 @@ public class TenantLifecycleService {
         transition(t, Tenant.Status.OFFBOARDED, "offboarded — data retained 30d then purged");
     }
 
-    @Transactional
-    public void retryProvisioning(Tenant t) {
-        if (t.getStatus() != Tenant.Status.PROVISION_FAILED) return;
-        t.setStatus(Tenant.Status.PROVISIONING);
-        tenants.save(t);
-        try {
-            provisioner.provision(t.getSlug());
-            t.setStatus(Tenant.Status.TRIAL);
-            t.setTrialEndsAt(Instant.now().plus(14, ChronoUnit.DAYS));
-            t.setCurrentPeriodEnd(t.getTrialEndsAt());
-            tenants.save(t);
-        } catch (Exception e) {
-            t.setStatus(Tenant.Status.PROVISION_FAILED);
-            tenants.save(t);
-            throw e;
-        }
-    }
+    /*
+     * Provisioning retries route through SignupService.resumeProvisioning —
+     * the idempotent pipeline (schema + owner + activation), not a raw re-provision.
+     */
 
     private void transition(Tenant t, Tenant.Status to, String reason) {
         Tenant.Status from = t.getStatus();

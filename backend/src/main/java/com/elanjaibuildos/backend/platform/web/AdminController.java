@@ -164,9 +164,9 @@ public class AdminController {
     }
 
     @PostMapping("/tenants/{id}/retry-provisioning")
-    public Map<String, String> retryProvision(@PathVariable UUID id) {
+    public Map<String, String> retryProvision(@PathVariable UUID id, Authentication auth) {
         Tenant t = tenants.findById(id).orElseThrow();
-        lifecycle.retryProvisioning(t);
+        signupService.resumeProvisioning(t, actorId(auth));
         return Map.of("status", t.getStatus().name());
     }
 

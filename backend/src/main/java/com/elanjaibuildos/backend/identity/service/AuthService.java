@@ -13,6 +13,7 @@ import com.elanjaibuildos.backend.identity.repository.InviteRepository;
 import com.elanjaibuildos.backend.identity.repository.PasswordResetRepository;
 import com.elanjaibuildos.backend.identity.repository.UserRepository;
 import com.elanjaibuildos.backend.security.JwtService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +46,14 @@ public class AuthService {
     private final PlatformMailService mail;
     private final PlatformGuard platformGuard;
     private final com.elanjaibuildos.backend.sites.repository.SiteRepository siteRepository;
+
+    /** Workspace URL template for links in mail ({slug} placeholder). */
+    @Value("${app.tenant-url-template:http://{slug}.localhost:5173}")
+    private String tenantUrlTemplate;
+
+    private String tenantUrl() {
+        return tenantUrlTemplate.replace("{slug}", TenantContext.getSlug());
+    }
 
     public AuthService(UserRepository users, InviteRepository invites,
                        PasswordResetRepository resets, PasswordEncoder encoder,
@@ -86,7 +95,7 @@ public class AuthService {
         inv.setExpiresAt(Instant.now().plus(72, ChronoUnit.HOURS));   // BR: invite links 72h, single-use
         invites.save(inv);
 
-        String link = "http://" + TenantContext.getSlug() + ".localhost:5173/accept-invite?token=" + inv.getToken();
+        String link = tenantUrl() + "/accept-invite?token=" + inv.getToken();
         mail.queueEmail(null, "invite", e, "You've been invited to ElanjaiBuildos",
                 "Accept your invite: " + link + "\n\nLink expires in 72 hours.");
         return inv;
@@ -141,8 +150,7 @@ public class AuthService {
             pr.setToken(token());
             pr.setExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));   // BR-021: 1h single-use
             resets.save(pr);
-            String link = "http://" + TenantContext.getSlug()
-                    + ".localhost:5173/reset-password?token=" + pr.getToken();
+            String link = tenantUrl() + "/reset-password?token=" + pr.getToken();
             mail.queueEmail(null, "password_reset", u.getEmail(),
                     "Reset your ElanjaiBuildos password",
                     "Reset link: " + link + "\n\nExpires in 1 hour.");

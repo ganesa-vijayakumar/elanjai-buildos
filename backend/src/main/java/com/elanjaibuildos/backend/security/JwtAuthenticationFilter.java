@@ -58,18 +58,39 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String realm = claims.get("realm", String.class);
             String email = claims.getSubject();
             String role = claims.get("role", String.class);
+            String path = request.getRequestURI();
+            boolean platformPath = isPlatformPath(path);
 
             if (JwtService.REALM_PLATFORM.equals(realm)) {
+                // platform tokens are valid only on admin/platform surfaces — fail closed elsewhere
+                if (!platformPath) {
+                    writeForbidden(response, "REALM_MISMATCH",
+                            "Platform tokens cannot access workspace endpoints.");
+                    return;
+                }
                 authenticatePlatform(request, email, role);
             } else if (JwtService.REALM_TENANT.equals(realm)) {
-                String tokenTenant = claims.get("tenant", String.class);
+                if (platformPath) {
+                    writeForbidden(response, "REALM_MISMATCH",
+                            "Workspace tokens cannot access platform endpoints.");
+                    return;
+                }
                 String ctxSlug = TenantContext.getSlug();
-                // token tenant must match host/header-resolved tenant
+                String tokenTenant = claims.get("tenant", String.class);
+                // tenant token requires a resolved tenant context and must match it
+                if (ctxSlug == null) {
+                    writeForbidden(response, "NO_TENANT_CONTEXT",
+                            "No workspace resolved for this request.");
+                    return;
+                }
                 if (tokenTenant == null || !tokenTenant.equals(ctxSlug)) {
                     writeForbidden(response, "TENANT_MISMATCH", "Token does not belong to this workspace.");
                     return;
                 }
                 authenticateTenant(request, email, role);
+            } else {
+                deny(response);
+                return;
             }
         } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
             deny(response);
@@ -101,6 +122,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 principal, null, List.of(new SimpleGrantedAuthority(authority)));
         auth.setDetails(details);
         SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    private static boolean isPlatformPath(String path) {
+        return path != null && (path.equals("/api/admin") || path.startsWith("/api/admin/")
+                || path.equals("/api/platform") || path.startsWith("/api/platform/"));
     }
 
     private void deny(HttpServletResponse r) throws IOException {

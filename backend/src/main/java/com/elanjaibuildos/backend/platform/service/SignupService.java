@@ -56,6 +56,14 @@ public class SignupService {
     @Value("${app.base-url:http://localhost:5173}")
     private String baseUrl;
 
+    /** Workspace URL template for links in mail ({slug} placeholder). */
+    @Value("${app.tenant-url-template:http://{slug}.localhost:5173}")
+    private String tenantUrlTemplate;
+
+    private String tenantUrl(String slug) {
+        return tenantUrlTemplate.replace("{slug}", slug);
+    }
+
     public SignupService(SignupRequestRepository signups, TenantRepository tenants,
                          PlanRepository plans, UserRepository tenantUsers,
                          PlatformSettingRepository settings,
@@ -124,36 +132,67 @@ public class SignupService {
         audit.logSystem("signup.email_verified", "signup_request", req.getId().toString(), Map.of());
     }
 
-    /** Stage 3a: approve → provision schema → create owner → trial. */
+    /**
+     * Stage 3a: approve → provision schema → create owner → trial.
+     * Idempotent end-to-end: a duplicate approve returns the existing tenant,
+     * and a PROVISION_FAILED signup re-runs the pipeline (every step is a
+     * re-entrant check-then-act).
+     */
     public Tenant approve(UUID signupId, UUID adminId) {
         SignupRequest req = signups.findById(signupId)
                 .orElseThrow(() -> new SignupException("Signup not found."));
-        if (req.getStatus() != SignupRequest.Status.PENDING) {
-            throw new SignupException("Signup already " + req.getStatus());
-        }
+        return switch (req.getStatus()) {
+            case PROVISIONED -> tenants.findBySlug(req.getSlug())
+                    .orElseThrow(() -> new SignupException(
+                            "Signup is marked provisioned but the tenant row is missing."));
+            case REJECTED -> throw new SignupException("Signup already " + req.getStatus());
+            case PENDING, APPROVED, PROVISION_FAILED -> provisionAndActivate(req, adminId);
+        };
+    }
 
+    /** Admin retry for a PROVISION_FAILED tenant — resumes the same idempotent pipeline. */
+    public Tenant resumeProvisioning(Tenant tenant, UUID adminId) {
+        if (tenant.getStatus() != Tenant.Status.PROVISION_FAILED) {
+            throw new SignupException("Tenant is not in PROVISION_FAILED state.");
+        }
+        SignupRequest req = signups.findTopBySlugOrderByCreatedAtDesc(tenant.getSlug())
+                .orElseThrow(() -> new SignupException("No signup found for " + tenant.getSlug()));
+        return provisionAndActivate(req, adminId);
+    }
+
+    /**
+     * Ordered, individually idempotent steps:
+     * reserve tenant row → create schema → migrate → create owner → activate trial.
+     * Re-running after a partial failure fast-forwards to the first incomplete step.
+     */
+    private Tenant provisionAndActivate(SignupRequest req, UUID adminId) {
         String schema = TenantSchemaProvisioner.schemaFor(req.getSlug());
-        Tenant t = new Tenant();
-        t.setCompanyName(req.getCompanyName());
-        t.setSlug(req.getSlug());
-        t.setSchemaName(schema);
-        t.setOwnerName(req.getOwnerName());
-        t.setOwnerEmail(req.getEmail());
-        t.setPhone(req.getPhone());
-        t.setGstin(req.getGstin());
-        t.setState(req.getState());
-        t.setPlan(req.getPlan());
-        t.setBillingCycle(req.getBillingCycle());
+        Tenant t = tenants.findBySlug(req.getSlug()).orElseGet(() -> {
+            Tenant n = new Tenant();
+            n.setCompanyName(req.getCompanyName());
+            n.setSlug(req.getSlug());
+            n.setSchemaName(schema);
+            n.setOwnerName(req.getOwnerName());
+            n.setOwnerEmail(req.getEmail());
+            n.setPhone(req.getPhone());
+            n.setGstin(req.getGstin());
+            n.setState(req.getState());
+            n.setPlan(req.getPlan());
+            n.setBillingCycle(req.getBillingCycle());
+            n.setApprovedBy(adminId);
+            n.setApprovedAt(Instant.now());
+            return n;
+        });
         t.setStatus(Tenant.Status.PROVISIONING);
-        t.setApprovedBy(adminId);
-        t.setApprovedAt(Instant.now());
-        t.setTrialEndsAt(Instant.now().plus(trialDays, ChronoUnit.DAYS));
-        t.setCurrentPeriodEnd(t.getTrialEndsAt());
+        if (t.getTrialEndsAt() == null) {
+            t.setTrialEndsAt(Instant.now().plus(trialDays, ChronoUnit.DAYS));
+            t.setCurrentPeriodEnd(t.getTrialEndsAt());
+        }
         tenants.save(t);
 
         try {
             provisioner.provision(req.getSlug());
-            createOwnerInTenantSchema(t, req);
+            ensureOwnerInTenantSchema(t, req);
             t.setStatus(Tenant.Status.TRIAL);
             tenants.save(t);
             req.setStatus(SignupRequest.Status.PROVISIONED);
@@ -172,7 +211,7 @@ public class SignupService {
         mail.queueEmail(t.getId(), "approved", req.getEmail(),
                 "Your ElanjaiBuildos workspace is ready",
                 "Hi " + req.getOwnerName() + ",\n\nYour workspace has been approved.\n\n"
-                        + "Sign in at http://" + req.getSlug() + ".localhost:5173/login\n"
+                        + "Sign in at " + tenantUrl(req.getSlug()) + "/login\n"
                         + "Your " + trialDays + "-day trial has started.");
         audit.logSystem("tenant.approved", "tenant", t.getId().toString(),
                 Map.of("slug", t.getSlug(), "plan", req.getPlan().getCode()));
@@ -218,20 +257,21 @@ public class SignupService {
         }
     }
 
-    private void createOwnerInTenantSchema(Tenant tenant, SignupRequest req) {
+    /** Idempotent: a re-run after partial provisioning does not duplicate the owner. */
+    private void ensureOwnerInTenantSchema(Tenant tenant, SignupRequest req) {
         TenantContext.setTenant(tenant.getSlug(), tenant.getSchemaName(), "TRIAL");
         try {
             txTemplate.execute(status -> {
-                User owner = new User();
-                owner.setEmail(req.getEmail());
-                owner.setPassword(req.getPasswordHash());
-                owner.setFullName(req.getOwnerName());
-                owner.setPhone(req.getPhone());
-                owner.setRole(Role.OWNER);
-                owner.setStatus("active");
-                tenantUsers.save(owner);
-
-                // seed tenant_settings.company from signup data
+                if (!tenantUsers.existsByEmail(req.getEmail())) {
+                    User owner = new User();
+                    owner.setEmail(req.getEmail());
+                    owner.setPassword(req.getPasswordHash());
+                    owner.setFullName(req.getOwnerName());
+                    owner.setPhone(req.getPhone());
+                    owner.setRole(Role.OWNER);
+                    owner.setStatus("active");
+                    tenantUsers.save(owner);
+                }
                 return null;
             });
         } finally {

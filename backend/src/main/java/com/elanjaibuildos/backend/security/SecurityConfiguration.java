@@ -2,6 +2,7 @@ package com.elanjaibuildos.backend.security;
 
 import com.elanjaibuildos.backend.common.web.TenantLifecycleGuardFilter;
 import com.elanjaibuildos.backend.common.web.TenantResolutionFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -22,6 +23,10 @@ public class SecurityConfiguration {
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final TenantResolutionFilter tenantResolutionFilter;
     private final TenantLifecycleGuardFilter lifecycleGuardFilter;
+
+    /** Comma-separated origin allow-list (patterns ok). Same-origin /api calls need no CORS. */
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://*.localhost:5173}")
+    private String corsAllowedOrigins;
 
     public SecurityConfiguration(JwtAuthenticationFilter jwtAuthFilter,
                                  TenantResolutionFilter tenantResolutionFilter,
@@ -61,8 +66,9 @@ public class SecurityConfiguration {
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         var configuration = new org.springframework.web.cors.CorsConfiguration();
-        configuration.setAllowedOriginPatterns(java.util.List.of(
-                "http://localhost:*", "http://*.localhost:*", "https://*.elanjai.app", "https://elanjai.app"));
+        configuration.setAllowedOriginPatterns(
+                java.util.Arrays.stream(corsAllowedOrigins.split(","))
+                        .map(String::trim).filter(s -> !s.isEmpty()).toList());
         configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "X-Tenant-ID"));
         configuration.setAllowCredentials(true);

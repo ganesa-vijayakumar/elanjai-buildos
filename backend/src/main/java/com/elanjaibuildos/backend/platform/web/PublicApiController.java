@@ -3,6 +3,7 @@ package com.elanjaibuildos.backend.platform.web;
 import com.elanjaibuildos.backend.platform.domain.Plan;
 import com.elanjaibuildos.backend.platform.domain.SignupRequest;
 import com.elanjaibuildos.backend.platform.repository.PlanRepository;
+import com.elanjaibuildos.backend.platform.repository.TenantRepository;
 import com.elanjaibuildos.backend.platform.service.SignupService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -21,10 +22,13 @@ public class PublicApiController {
 
     private final SignupService signupService;
     private final PlanRepository plans;
+    private final TenantRepository tenants;
 
-    public PublicApiController(SignupService signupService, PlanRepository plans) {
+    public PublicApiController(SignupService signupService, PlanRepository plans,
+                               TenantRepository tenants) {
         this.signupService = signupService;
         this.plans = plans;
+        this.tenants = tenants;
     }
 
     @GetMapping("/plans")
@@ -63,5 +67,17 @@ public class PublicApiController {
     @GetMapping("/slug-available")
     public Map<String, Boolean> slugAvailable(@RequestParam String slug) {
         return Map.of("available", signupService.slugAvailable(slug.toLowerCase()));
+    }
+
+    /**
+     * Workspace existence + lifecycle-safe status for the tenant app's
+     * workspace-not-found guard. Exposes slug/status only — never user data.
+     */
+    @GetMapping("/tenants/{slug}/status")
+    public Map<String, Object> tenantStatus(@PathVariable String slug) {
+        return tenants.findBySlug(slug.toLowerCase())
+                .<Map<String, Object>>map(t -> Map.of(
+                        "slug", t.getSlug(), "exists", true, "status", t.getStatus().name()))
+                .orElse(Map.of("slug", slug.toLowerCase(), "exists", false));
     }
 }

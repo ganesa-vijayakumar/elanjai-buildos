@@ -16,10 +16,21 @@ import java.sql.Statement;
 @Component
 public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectionProvider<String> {
 
+    /** Mirrors the slug rules enforced at signup/provisioning: t_<slug>. */
+    private static final String SCHEMA_PATTERN = "^t_[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$";
+
     private final DataSource dataSource;
 
     public SchemaMultiTenantConnectionProvider(DataSource dataSource) {
         this.dataSource = dataSource;
+    }
+
+    /** Fail closed unless the identifier is exactly t_<valid-slug>; quotes it for hyphenated names. */
+    static String quotedSchema(String schema) {
+        if (schema == null || !schema.matches(SCHEMA_PATTERN)) {
+            throw new IllegalArgumentException("Unsafe tenant schema identifier: " + schema);
+        }
+        return '"' + schema + '"';
     }
 
     @Override
@@ -36,18 +47,23 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
     public Connection getConnection(String schema) throws SQLException {
         Connection connection = dataSource.getConnection();
         try (Statement stmt = connection.createStatement()) {
-            // Identifier is safe: schema names are validated as ^t_[a-z0-9-]+$ at provisioning.
-            stmt.execute("SET search_path TO " + schema + ", public");
+            stmt.execute("SET search_path TO " + quotedSchema(schema) + ", public");
+        } catch (SQLException | RuntimeException e) {
+            connection.close();
+            throw e;
         }
         return connection;
     }
 
     @Override
     public void releaseConnection(String schema, Connection connection) throws SQLException {
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("SET search_path TO public");
+        try {
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute("SET search_path TO public");
+            }
+        } finally {
+            connection.close();
         }
-        connection.close();
     }
 
     @Override

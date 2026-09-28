@@ -12,4 +12,5 @@ public interface SignupRequestRepository extends JpaRepository<SignupRequest, UU
     List<SignupRequest> findByStatus(SignupRequest.Status status);
     boolean existsBySlugAndStatus(String slug, SignupRequest.Status status);
     boolean existsByEmailAndStatus(String email, SignupRequest.Status status);
+    Optional<SignupRequest> findTopBySlugOrderByCreatedAtDesc(String slug);
 }
