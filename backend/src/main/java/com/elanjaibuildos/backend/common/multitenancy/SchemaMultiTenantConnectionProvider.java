@@ -25,8 +25,14 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
         this.dataSource = dataSource;
     }
 
-    /** Fail closed unless the identifier is exactly t_<valid-slug>; quotes it for hyphenated names. */
+    /**
+     * Fail closed unless the identifier is exactly t_<valid-slug> or the platform
+     * realm's "public"; quotes it so hyphenated names are valid SQL.
+     */
     static String quotedSchema(String schema) {
+        if (SchemaTenantIdentifierResolver.PUBLIC_SCHEMA.equals(schema)) {
+            return "\"public\"";
+        }
         if (schema == null || !schema.matches(SCHEMA_PATTERN)) {
             throw new IllegalArgumentException("Unsafe tenant schema identifier: " + schema);
         }

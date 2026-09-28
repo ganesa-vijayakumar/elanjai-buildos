@@ -47,7 +47,7 @@ public class TenantSchemaProvisioner {
     }
 
     /** Quoted schema identifier — hyphens are legal in slugs, so the identifier must be quoted. */
-    private static String quoteIdent(String schema) {
+    static String quoteIdent(String schema) {
         if (schema == null || !schema.matches(SCHEMA_PATTERN)) {
             throw new IllegalArgumentException("Unsafe tenant schema identifier: " + schema);
         }
