@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin dashboard — ElanjaiBuildos</title>
+<link rel="stylesheet" href="../prototype.css">
+</head>
+<body>
+<div class="admin">
+  <aside class="side">
+    <div class="brand"><span class="mark">E</span>Platform</div>
+    <div class="sect">Operate</div>
+    <a class="on" href="dashboard.html">▦ Dashboard</a>
+    <a href="tenants.html">▤ Tenants</a>
+    <a href="approvals.html">✓ Approvals <span class="pill">3</span></a>
+    <div class="sect">Monetize</div>
+    <a href="#">◈ Plans</a>
+    <a href="#">₹ Billing</a>
+    <div class="sect">System</div>
+    <a href="#">⚙ Settings</a>
+    <a href="#">≡ Audit Log</a>
+  </aside>
+  <main class="main">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <h2>Dashboard</h2><span class="small muted">Last refreshed just now</span>
+    </div>
+    <div class="grid grid-4" style="margin:18px 0 26px">
+      <div class="card kpi"><span class="trend badge b-active">+12%</span><div class="num">₹96,480</div><div class="lbl">MRR</div></div>
+      <div class="card kpi"><div class="num">24</div><div class="lbl">Tenants</div></div>
+      <div class="card kpi"><div class="num">3</div><div class="lbl">Pending approvals</div></div>
+      <div class="card kpi"><div class="num">5</div><div class="lbl">Trials ending ≤3d</div></div>
+    </div>
+    <div class="card" style="margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3>Pending approvals</h3><a class="small" href="approvals.html">Open queue →</a></div>
+      <div class="table-wrap" style="border:none">
+      <table class="table"><thead><tr><th>Company</th><th>Slug</th><th>Plan</th><th>Email</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>KSR Constructions</td><td class="mono">ksr</td><td>Pro</td><td>verified ✓</td><td><a class="btn btn-sm btn-secondary" href="approvals.html">Review</a></td></tr>
+        <tr><td>Madurai Homes</td><td class="mono">mdhomes</td><td>Starter</td><td>verified ✓</td><td><a class="btn btn-sm btn-secondary" href="approvals.html">Review</a></td></tr>
+        <tr><td>Delta Infra</td><td class="mono">delta</td><td>Business</td><td><span class="badge b-pend">unverified</span></td><td><a class="btn btn-sm btn-secondary" href="approvals.html">Review</a></td></tr>
+      </tbody></table></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:14px">Trials ending soon</h3>
+      <table class="table"><thead><tr><th>Tenant</th><th>Plan</th><th>Trial ends</th><th>Status</th><th>Usage</th></tr></thead>
+      <tbody>
+        <tr><td>Acme Builders</td><td>Pro</td><td>in 2 days</td><td><span class="badge b-trial">TRIAL</span></td><td><div class="meter" style="width:80px"><i style="width:62%"></i></div></td></tr>
+        <tr><td>SS Constructions</td><td>Starter</td><td>in 3 days</td><td><span class="badge b-trial">TRIAL</span></td><td><div class="meter" style="width:80px"><i style="width:35%"></i></div></td></tr>
+      </tbody></table>
+    </div>
+  </main>
+</div>
+</body>
+</html>

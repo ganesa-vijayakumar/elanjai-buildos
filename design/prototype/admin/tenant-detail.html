@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acme Builders — Tenant detail</title>
+<link rel="stylesheet" href="../prototype.css">
+</head>
+<body>
+<div class="admin">
+  <aside class="side">
+    <div class="brand"><span class="mark" style="background:var(--indigo-600)">E</span>Platform</div>
+    <a href="dashboard.html">Dashboard</a>
+    <a class="on" href="tenants.html">Tenants</a>
+    <a href="approvals.html">Approvals</a>
+    <a href="#">Plans</a><a href="#">Billing</a><a href="#">Settings</a><a href="#">Audit Log</a>
+  </aside>
+  <main class="main">
+    <a href="tenants.html" class="small">◀ Tenants</a>
+    <div style="display:flex;align-items:center;gap:12px;margin:8px 0 20px;flex-wrap:wrap">
+      <h2>Acme Builders</h2>
+      <span class="badge b-trial">TRIAL — 2 days left</span>
+      <span class="badge b-pend">Pro plan</span>
+    </div>
+    <div class="grid grid-4">
+      <div class="card"><div class="lbl small">Staff users</div><div class="meter" style="margin:8px 0"><i style="width:80%"></i></div><b>4 / 5</b></div>
+      <div class="card"><div class="lbl small">Projects</div><div class="meter" style="margin:8px 0"><i style="width:60%"></i></div><b>12 / 20</b></div>
+      <div class="card"><div class="lbl small">Quotations this month</div><div class="meter warn" style="margin:8px 0"><i style="width:82%"></i></div><b>41 / 50</b></div>
+      <div class="card"><div class="lbl small">Storage</div><div class="meter" style="margin:8px 0"><i style="width:62%"></i></div><b>6.2 / 10 GB</b></div>
+    </div>
+    <div class="card" style="margin-top:20px">
+      <h3 style="margin-bottom:12px">Subscription</h3>
+      <table class="table"><tbody>
+        <tr><td class="muted">Cycle</td><td>Monthly · ₹2,999</td></tr>
+        <tr><td class="muted">Trial ends</td><td>Sep 29, 2026</td></tr>
+        <tr><td class="muted">Razorpay</td><td>sub_Nx8k…2d (none yet — trial)</td></tr>
+        <tr><td class="muted">GSTIN</td><td>33ABCDE1234F1Z5</td></tr>
+      </tbody></table>
+    </div>
+    <div class="card" style="margin-top:20px">
+      <h3 style="margin-bottom:12px">Invoices</h3>
+      <table class="table"><thead><tr><th>#</th><th>Period</th><th>Total</th><th>Status</th><th></th></tr></thead>
+      <tbody><tr><td>INV-2026-00012</td><td>Sep 29 – Oct 29</td><td>₹3,538.82</td><td><span class="badge b-pend">draft</span></td><td><a href="#">PDF</a></td></tr></tbody></table>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:24px">
+      <button class="btn btn-secondary">Reactivate</button>
+      <button class="btn btn-danger" data-testid="suspend-btn">Suspend…</button>
+      <button class="btn btn-danger" data-testid="offboard-btn">Offboard…</button>
+    </div>
+    <p class="small" style="margin-top:10px">Suspend/offboard require a typed reason and confirmation; all actions are audit-logged.</p>
+  </main>
+</div>
+</body>
+</html>

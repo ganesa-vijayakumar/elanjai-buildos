@@ -13,7 +13,7 @@ import { Badge } from '../ui/badge'
 
 interface NavbarMVPProps {
     activeView: string
-    onViewChange: (view: 'dashboard' | 'quotations' | 'reports' | 'settings') => void
+    onViewChange: (view: string) => void
 }
 
 export function NavbarMVP({ activeView, onViewChange }: NavbarMVPProps) {
@@ -102,6 +102,12 @@ export function NavbarMVP({ activeView, onViewChange }: NavbarMVPProps) {
                                     <DropdownMenuItem onClick={() => onViewChange('settings')}>
                                         <User className="w-4 h-4 mr-2" />
                                         Profile Settings
+                                    </DropdownMenuItem>
+                                )}
+                                {role === 'owner' && (
+                                    <DropdownMenuItem onClick={() => onViewChange('billing')}>
+                                        <User className="w-4 h-4 mr-2" />
+                                        Billing & subscription
                                     </DropdownMenuItem>
                                 )}
                                 <DropdownMenuSeparator />

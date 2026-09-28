@@ -1,7 +1,6 @@
 package com.elanjaibuildos.backend.service;
 
 import com.elanjaibuildos.backend.model.Role;
-
 import com.elanjaibuildos.backend.dto.RegisterRequest;
 import com.elanjaibuildos.backend.dto.UserResponse;
 import com.elanjaibuildos.backend.model.User;
@@ -33,20 +32,19 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
+    /** Staff user creation — full invite flow lives in AuthService.invite/acceptInvite. */
     public UserResponse createUser(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email already exists");
         }
-        var user = User.builder()
-                .fullName(request.getFullName())
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .phone(request.getPhone())
-                .location(request.getLocation())
-                .role(request.getRole() != null ? request.getRole() : Role.CLIENT)
-                .build();
-        User savedUser = userRepository.save(user);
-        return mapToResponse(savedUser);
+        User user = new User();
+        user.setFullName(request.getFullName());
+        user.setEmail(request.getEmail().toLowerCase());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setPhone(request.getPhone());
+        user.setRole(request.getRole() != null ? request.getRole() : Role.CLIENT);
+        user.setStatus("active");
+        return mapToResponse(userRepository.save(user));
     }
 
     public UserResponse updateUser(UUID id, RegisterRequest request) {
@@ -55,15 +53,12 @@ public class UserService {
 
         user.setFullName(request.getFullName());
         user.setPhone(request.getPhone());
-        user.setLocation(request.getLocation());
         if (request.getRole() != null) {
             user.setRole(request.getRole());
         }
-        // Only update password if provided and not empty
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
-
         return mapToResponse(userRepository.save(user));
     }
 
@@ -83,10 +78,8 @@ public class UserService {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .phone(user.getPhone())
-                .location(user.getLocation())
                 .role(user.getRole())
-                .companyName(user.getCompanyName())
-                .companyLogo(user.getCompanyLogo())
+                .status(user.getStatus())
                 .build();
     }
 }

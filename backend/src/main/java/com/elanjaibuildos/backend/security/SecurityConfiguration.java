@@ -1,9 +1,10 @@
 package com.elanjaibuildos.backend.security;
 
-import lombok.RequiredArgsConstructor;
+import com.elanjaibuildos.backend.common.web.TenantLifecycleGuardFilter;
+import com.elanjaibuildos.backend.common.web.TenantResolutionFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -14,36 +15,57 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@RequiredArgsConstructor
+@EnableMethodSecurity
 public class SecurityConfiguration {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
-    private final AuthenticationProvider authenticationProvider;
+    private final TenantResolutionFilter tenantResolutionFilter;
+    private final TenantLifecycleGuardFilter lifecycleGuardFilter;
+
+    public SecurityConfiguration(JwtAuthenticationFilter jwtAuthFilter,
+                                 TenantResolutionFilter tenantResolutionFilter,
+                                 TenantLifecycleGuardFilter lifecycleGuardFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+        this.tenantResolutionFilter = tenantResolutionFilter;
+        this.lifecycleGuardFilter = lifecycleGuardFilter;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable)
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .anyRequest().authenticated())
-                .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authenticationProvider(authenticationProvider)
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .csrf(AbstractHttpConfigurer::disable)
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .authorizeHttpRequests(auth -> auth
+                // public realm
+                .requestMatchers("/api/public/**", "/", "/error").permitAll()
+                .requestMatchers("/webhooks/**").permitAll()
+                // platform admin realm
+                .requestMatchers("/api/admin/auth/login").permitAll()
+                .requestMatchers("/api/admin/**").hasRole("PLATFORM_ADMIN")
+                .requestMatchers("/api/platform/**").hasAnyRole("PLATFORM_ADMIN", "PLATFORM_SUPPORT")
+                // tenant realm — auth endpoints open, rest authenticated
+                .requestMatchers("/api/auth/login", "/api/auth/authenticate",
+                                 "/api/auth/accept-invite",
+                                 "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
+                .anyRequest().authenticated())
+            .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // order: resolve tenant → lifecycle guard → jwt auth → controller
+            .addFilterBefore(tenantResolutionFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(lifecycleGuardFilter, TenantResolutionFilter.class)
+            .addFilterAfter(jwtAuthFilter, TenantLifecycleGuardFilter.class);
 
         return http.build();
     }
 
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
-        org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
-        configuration.setAllowedOrigins(
-                java.util.List.of("http://localhost:5000", "http://localhost:5173", "http://localhost:3000"));
-        configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type"));
+        var configuration = new org.springframework.web.cors.CorsConfiguration();
+        configuration.setAllowedOriginPatterns(java.util.List.of(
+                "http://localhost:*", "http://*.localhost:*", "https://*.elanjai.app", "https://elanjai.app"));
+        configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "X-Tenant-ID"));
         configuration.setAllowCredentials(true);
-        org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        var source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }

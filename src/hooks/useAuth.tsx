@@ -18,7 +18,6 @@ interface AuthContextType {
     loading: boolean;
     error: Error | null;
     signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-    signUp: (email: string, password: string, fullName: string, phone: string, role?: string) => Promise<{ error: Error | null }>;
     logout: () => void;
 }
 
@@ -69,34 +68,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const signUp = async (email: string, password: string, fullName: string, phone: string, role: string = 'CLIENT') => {
-        setLoading(true);
-        setError(null);
-        try {
-            const response = await api.post('/auth/register', {
-                email,
-                password,
-                fullName,
-                phone,
-                role
-            });
-            const { token, user } = response.data;
-            localStorage.setItem('jwt_token', token);
-            localStorage.setItem('user_data', JSON.stringify(user));
-            setUser(user);
-
-            return { error: null };
-        } catch (err: any) {
-            console.error("Registration failed", err);
-            const message = err.response?.data?.message || 'Registration failed';
-            const errorObj = new Error(message);
-            setError(errorObj);
-            return { error: errorObj };
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const logout = () => {
         localStorage.removeItem('jwt_token');
         localStorage.removeItem('user_data');
@@ -113,7 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         signIn,
-        signUp,
         logout,
     };
 

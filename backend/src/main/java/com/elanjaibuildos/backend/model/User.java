@@ -1,79 +1,66 @@
 package com.elanjaibuildos.backend.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import org.hibernate.annotations.GenericGenerator;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
-
-import java.util.Collection;
-import java.util.List;
+import java.time.Instant;
 import java.util.UUID;
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
+/**
+ * Tenant user — lives in t_<slug>.users. Identity is (email, tenant-schema):
+ * the same email can exist in different tenants (BR-001).
+ * Company identity lives in tenant_settings, not on the user row.
+ */
 @Entity
 @Table(name = "users")
-public class User implements UserDetails {
+public class User {
 
     @Id
-    @GeneratedValue(generator = "UUID")
-    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
-    @Column(updatable = false, nullable = false)
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false, unique = true, length = 190)
     private String email;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     private String password;
 
+    @Column(name = "full_name", nullable = false)
     private String fullName;
+
     private String phone;
-    private String location;
-
-    @Column(name = "company_name")
-    private String companyName;
-
-    @Column(name = "company_logo")
-    private String companyLogo;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
     private Role role;
 
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
-    }
+    @Column(nullable = false, length = 16)
+    private String status = "active";   // active | suspended | deactivated
 
-    @Override
-    public String getUsername() {
-        return email;
-    }
+    @Column(name = "created_by")
+    private UUID createdBy;
 
-    @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
+    @Column(name = "created_at")
+    private Instant createdAt = Instant.now();
 
-    @Override
-    public boolean isAccountNonLocked() {
-        return true;
-    }
+    @Column(name = "last_login_at")
+    private Instant lastLoginAt;
 
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return true;
-    }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+    public String getEmail() { return email; }
+    public void setEmail(String v) { this.email = v; }
+    public String getPassword() { return password; }
+    public void setPassword(String v) { this.password = v; }
+    public String getFullName() { return fullName; }
+    public void setFullName(String v) { this.fullName = v; }
+    public String getPhone() { return phone; }
+    public void setPhone(String v) { this.phone = v; }
+    public Role getRole() { return role; }
+    public void setRole(Role v) { this.role = v; }
+    public String getStatus() { return status; }
+    public void setStatus(String v) { this.status = v; }
+    public UUID getCreatedBy() { return createdBy; }
+    public void setCreatedBy(UUID v) { this.createdBy = v; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getLastLoginAt() { return lastLoginAt; }
+    public void setLastLoginAt(Instant v) { this.lastLoginAt = v; }
 }

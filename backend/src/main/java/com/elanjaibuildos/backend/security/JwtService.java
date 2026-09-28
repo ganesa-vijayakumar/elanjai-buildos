@@ -2,74 +2,79 @@ package com.elanjaibuildos.backend.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 
+/**
+ * Dual-realm JWT service.
+ *  - realm=platform : platform_users (super-admin / support) — no tenant claim
+ *  - realm=tenant   : tenant users — carries slug + schema + role claims
+ */
 @Service
 public class JwtService {
+
+    public static final String REALM_PLATFORM = "platform";
+    public static final String REALM_TENANT = "tenant";
 
     @Value("${app.jwt.secret}")
     private String secretKey;
 
-    @Value("${app.jwt.expiration-ms}")
+    @Value("${app.jwt.expiration-ms:86400000}")
     private long jwtExpiration;
 
-    public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
+    public String generatePlatformToken(String email, String role) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("realm", REALM_PLATFORM);
+        claims.put("role", role);
+        return build(claims, email, jwtExpiration);
     }
 
-    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
+    public String generateTenantToken(String email, String tenantSlug, String role) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("realm", REALM_TENANT);
+        claims.put("tenant", tenantSlug);
+        claims.put("role", role);
+        return build(claims, email, jwtExpiration);
     }
 
-    public String generateToken(UserDetails userDetails) {
-        return generateToken(new HashMap<>(), userDetails);
+    /** Password-reset / invite tokens — short lived, purpose-bound. */
+    public String generateActionToken(String email, String purpose, long ttlMs) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("realm", "action");
+        claims.put("purpose", purpose);
+        return build(claims, email, ttlMs);
     }
 
-    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
+    private String build(Map<String, Object> claims, String subject, long ttlMs) {
         return Jwts.builder()
-                .setClaims(extraClaims)
-                .setSubject(userDetails.getUsername())
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpiration))
-                .signWith(getSignInKey(), SignatureAlgorithm.HS256)
+                .claims(claims)
+                .subject(subject)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + ttlMs))
+                .signWith(key())
                 .compact();
     }
 
-    public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
-    }
-
-    private boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
-    }
-
-    private Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
-
-    private Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(getSignInKey())
+    public Claims parse(String token) {
+        return Jwts.parser()
+                .verifyWith(key())
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
-    private Key getSignInKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-        return Keys.hmacShaKeyFor(keyBytes);
+    public boolean isExpired(Claims claims) {
+        return claims.getExpiration().before(new Date());
+    }
+
+    private SecretKey key() {
+        return Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 }

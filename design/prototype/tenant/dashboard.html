@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en" style="--tenant-primary:#0e7490;--tenant-primary-hover:#155e75">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard — Acme Builders</title>
+<link rel="stylesheet" href="../prototype.css">
+</head>
+<body>
+<nav class="topnav"><div class="container">
+  <span class="brand"><span class="mark">A</span>Acme Builders</span>
+  <div class="navlinks">
+    <a class="on" href="dashboard.html">Dashboard</a><a href="site-detail.html">Sites</a>
+    <a href="quotation.html">Quotations</a><a href="labor.html">Labor</a>
+    <a href="#">Materials</a><a href="#">Reports</a><a href="#">Settings</a>
+  </div>
+  <span class="bell" aria-label="notifications">🔔<i class="dot"></i></span>
+  <span class="avatar">KR</span>
+  <button class="burger" aria-label="Menu">☰</button>
+</div></nav>
+<div class="container" style="padding-top:20px;padding-bottom:56px">
+  <div class="banner banner-trial" data-testid="trial-banner">⏱ <b>2 days left in trial</b> — <a href="billing.html">subscribe to keep your workspace</a></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <h2>Good morning, Karthik</h2>
+    <button class="btn btn-primary btn-sm">+ New quotation</button>
+  </div>
+  <div class="grid grid-4" style="margin:18px 0 24px">
+    <div class="card kpi"><span class="trend badge b-active">+2</span><div class="num">6</div><div class="lbl">Active sites</div></div>
+    <div class="card kpi"><span class="trend badge b-grace">3 due</span><div class="num">₹4.2L</div><div class="lbl">Collections · Sep</div></div>
+    <div class="card kpi"><div class="num">3</div><div class="lbl">Pending approvals</div></div>
+    <div class="card kpi"><div class="num">18</div><div class="lbl">Workers today</div></div>
+  </div>
+  <div class="grid grid-2">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3>Sites</h3><a class="small" href="#">View all →</a></div>
+      <div style="display:grid;gap:10px">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border:var(--ring);border-radius:var(--r-lg)">
+          <div style="flex:1"><b>Villa 42, OMR</b><div class="small">Roof slab · R. Meena</div>
+            <div class="meter" style="margin-top:8px"><i style="width:62%"></i></div></div>
+          <span class="badge b-active">62%</span></div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border:var(--ring);border-radius:var(--r-lg)">
+          <div style="flex:1"><b>Skanda Enclave #3</b><div class="small">Masonry · S. Anand</div>
+            <div class="meter warn" style="margin-top:8px"><i style="width:41%"></i></div></div>
+          <span class="badge b-grace">41%</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3>Pending approvals</h3><span class="badge b-grace">3</span></div>
+      <div style="display:grid;gap:10px">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border:var(--ring);border-radius:var(--r-lg)">
+          <div style="flex:1"><b>Cement — 40 bags</b><div class="small">Villa 42 · entered by Murugan</div></div>
+          <b>₹14,800</b><button class="btn btn-sm btn-primary">Approve</button></div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border:var(--ring);border-radius:var(--r-lg)">
+          <div style="flex:1"><b>Labour — bar benders</b><div class="small">Skanda #3 · today</div></div>
+          <b>₹9,200</b><button class="btn btn-sm btn-primary">Approve</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

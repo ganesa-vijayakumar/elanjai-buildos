@@ -1,0 +1,30 @@
+{
+  "affectedStages": [
+    "requirement",
+    "estimation",
+    "proposal",
+    "design",
+    "development",
+    "documentation",
+    "devops",
+    "enhancement"
+  ],
+  "appShape": {
+    "shapeId": "web",
+    "supportState": "BASELINE_SUPPORTED",
+    "version": "baseline-1"
+  },
+  "catalogVersion": "v1",
+  "dependencies": [],
+  "permittedNextActions": [
+    "core-requirements-work",
+    "no-optional-capabilities"
+  ],
+  "projectId": null,
+  "reasonCodes": [],
+  "requestedDecisions": [],
+  "requiredSafeguards": [],
+  "selected": [],
+  "selectionDigest": "114ea1a2c993134e28be5d9741fb17ced6186bd0a95c50e0034446e82663b8c6",
+  "verdict": "READY"
+}

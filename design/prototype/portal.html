@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" style="--tenant-primary:#0e7490;--tenant-primary-hover:#155e75">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My project — Villa 42</title>
+<link rel="stylesheet" href="prototype.css">
+</head>
+<body>
+<nav class="topnav"><div class="container">
+  <span class="brand"><span class="mark">A</span>Acme Builders <span class="badge b-pend">client portal</span></span>
+  <div class="navlinks"><a class="on" href="#">My project</a><a href="#">Sign out</a></div>
+  <button class="burger" aria-label="Menu">☰</button>
+</div></nav>
+<div class="container" style="padding:24px 16px 64px;max-width:720px">
+  <h2>Villa 42, OMR</h2>
+  <p class="small">Overall progress</p>
+  <div class="meter" style="margin:8px 0 4px"><i style="width:62%"></i></div>
+  <p class="small" style="margin-bottom:20px">62% · current stage: <b>Roof slab</b></p>
+
+  <div class="card" style="margin-bottom:16px">
+    <h3 style="margin-bottom:12px">Payments</h3>
+    <table class="table"><tbody>
+      <tr><td>Stage 3 — Roof slab</td><td>₹4.0L</td><td><span class="badge b-active">paid Sep 12</span></td></tr>
+      <tr><td>Stage 4 — Masonry</td><td>₹4.8L</td><td><span class="badge b-grace">due Oct 05</span></td></tr>
+    </tbody></table>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <h3 style="margin-bottom:12px">Latest photos</h3>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px">
+      <div style="aspect-ratio:4/3;background:var(--slate-200);border-radius:var(--r-md);display:grid;place-items:center;color:var(--text-3)">📷</div>
+      <div style="aspect-ratio:4/3;background:var(--slate-200);border-radius:var(--r-md);display:grid;place-items:center;color:var(--text-3)">📷</div>
+      <div style="aspect-ratio:4/3;background:var(--slate-200);border-radius:var(--r-md);display:grid;place-items:center;color:var(--text-3)">📷</div>
+    </div>
+  </div>
+  <button class="btn btn-primary" style="width:100%" data-testid="change-request">Submit change request</button>
+</div>
+</body>
+</html>

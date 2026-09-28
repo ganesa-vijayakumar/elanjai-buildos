@@ -4,11 +4,12 @@ import com.elanjaibuildos.backend.dto.SiteRequest;
 import com.elanjaibuildos.backend.dto.SiteResponse;
 import com.elanjaibuildos.backend.model.Site;
 import com.elanjaibuildos.backend.model.User;
+import com.elanjaibuildos.backend.platform.model.UsageCounter;
+import com.elanjaibuildos.backend.platform.service.PlatformGuard;
 import com.elanjaibuildos.backend.repository.SiteRepository;
 import com.elanjaibuildos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -21,6 +22,7 @@ public class SiteService {
 
     private final SiteRepository siteRepository;
     private final UserRepository userRepository;
+    private final PlatformGuard platformGuard;
 
     public List<SiteResponse> getAllSites() {
         return siteRepository.findAll().stream()
@@ -48,6 +50,7 @@ public class SiteService {
     }
 
     public SiteResponse createSite(SiteRequest request) {
+        platformGuard.checkAndIncrement(UsageCounter.M_PROJECTS);
         User currentUser = getCurrentUser();
 
         User clientUser = null;
@@ -109,12 +112,9 @@ public class SiteService {
     }
 
     private User getCurrentUser() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (principal instanceof UserDetails) {
-            String email = ((UserDetails) principal).getUsername();
-            return userRepository.findByEmail(email).orElseThrow();
-        }
-        throw new RuntimeException("User not found in context");
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) throw new RuntimeException("User not found in context");
+        return userRepository.findByEmail(auth.getName()).orElseThrow();
     }
 
     private SiteResponse mapToResponse(Site site) {

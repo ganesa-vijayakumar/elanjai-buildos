@@ -1,0 +1,42 @@
+REQ_ID,FEATURE,EST_ID,ARTIFACT,TEST_ID,BUG_ID,STATUS
+REQ-001,Public tenant signup,,,,,planned
+REQ-002,Slug validation,,,,,planned
+REQ-003,Approval queue,,,,,planned
+REQ-004,Schema provisioning,,,,,planned
+REQ-005,Welcome + setup wizard,,,,,planned
+REQ-006,Tenant lifecycle engine,,,,,planned
+REQ-010,Plan catalog,,,,,planned
+REQ-011,Razorpay checkout,,,,,planned
+REQ-012,14-day trial,,,,,planned
+REQ-013,Webhook handler,,,,,planned
+REQ-014,GST invoices,,,,,planned
+REQ-015,Plan change,,,,,planned
+REQ-016,Offboarding export,,,,,planned
+REQ-017,Dunning,,,,,planned
+REQ-020,Feature flags,,,,,planned
+REQ-021,Usage limits,,,,,planned
+REQ-022,Usage metering,,,,,planned
+REQ-030,Platform login,,,,,planned
+REQ-031,Tenant list/detail,,,,,planned
+REQ-032,Approvals UI,,,,,planned
+REQ-033,Plan management UI,,,,,planned
+REQ-034,Subscriptions/MRR dashboard,,,,,planned
+REQ-035,Suspend/reactivate/offboard,,,,,planned
+REQ-036,Platform settings,,,,,planned
+REQ-037,Support read-only views,,,,,planned
+REQ-040,Tenant auth + invites,,,,,planned
+REQ-041,Role dashboards,,,,,planned
+REQ-042,Quotation engine,,,,,planned
+REQ-043,Agreement generation,,,,,planned
+REQ-044,Project creation wizard,,,,,planned
+REQ-045,Site tracking,,,,,planned
+REQ-046,Labor attendance/wages,,,,,planned
+REQ-047,Material estimator,,,,,planned
+REQ-048,Material tracking,,,,,planned
+REQ-049,Reports + CSV,,,,,planned
+REQ-050,Settings masters,,,,,planned
+REQ-051,Client portal,,,,,planned
+REQ-052,Site photos,,,,,planned
+REQ-053,In-app notifications,,,,,planned
+REQ-054,Tenant branding,,,,,planned
+REQ-055,Tenant billing page,,,,,planned

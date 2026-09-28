@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Approvals — ElanjaiBuildos Admin</title>
+<link rel="stylesheet" href="../prototype.css">
+</head>
+<body>
+<div class="admin">
+  <aside class="side">
+    <div class="brand"><span class="mark" style="background:var(--indigo-600)">E</span>Platform</div>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="tenants.html">Tenants</a>
+    <a class="on" href="approvals.html">Approvals <span class="badge b-trial">3</span></a>
+    <a href="#">Plans</a><a href="#">Billing</a><a href="#">Settings</a><a href="#">Audit Log</a>
+  </aside>
+  <main class="main">
+    <h2>Signup approvals</h2>
+    <p class="small" style="margin:4px 0 20px">Approving provisions a tenant schema and starts a 14-day trial.</p>
+    <div class="grid" style="gap:16px">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div><h3>KSR Constructions</h3>
+            <p class="small">ksr.elanjai.app · Pro plan · Chennai, TN</p>
+            <p class="small">Owner: K. Raja · raja@ksr.in · 98xxxxxx10 <span class="badge b-active">email verified</span></p>
+            <p class="small muted">Requested Sep 26 · GSTIN provided</p></div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <button class="btn btn-primary btn-sm" data-testid="approve-btn">Approve &amp; provision</button>
+            <button class="btn btn-secondary btn-sm" data-testid="reject-btn">Reject…</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div><h3>Madurai Homes</h3>
+            <p class="small">mdhomes.elanjai.app · Starter · Madurai, TN</p>
+            <p class="small">Owner: S. Devi · devi@mdhomes.in <span class="badge b-pend">unverified</span></p>
+            <p class="small muted">Requested Sep 25</p></div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <button class="btn btn-primary btn-sm">Approve &amp; provision</button>
+            <button class="btn btn-secondary btn-sm">Reject…</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

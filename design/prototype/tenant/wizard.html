@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" style="--tenant-primary:#0e7490;--tenant-primary-hover:#155e75">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Setup wizard — Acme Builders</title>
+<link rel="stylesheet" href="../prototype.css">
+</head>
+<body>
+<div class="container" style="max-width:640px;padding:32px 16px 64px">
+  <div class="brand" style="margin-bottom:8px"><span class="mark">A</span>Acme Builders</div>
+  <h2>Let's set up your workspace</h2>
+  <div class="steps">
+    <div class="step done">Company</div><div class="step now">Branding</div>
+    <div class="step">Packages</div><div class="step">Stages</div><div class="step">Done</div>
+  </div>
+  <div class="card">
+    <h3 style="margin-bottom:16px">Branding</h3>
+    <div class="field"><label class="label">Company logo</label>
+      <div style="border:1px dashed var(--border-strong);border-radius:var(--r-md);padding:24px;text-align:center;color:var(--text-3)">
+        ⬆ Upload logo (PNG/SVG, ≤2MB)</div></div>
+    <div class="field"><label class="label" for="ac">Accent color</label>
+      <div style="display:flex;gap:10px;align-items:center">
+        <input id="ac" type="color" value="#0e7490" style="width:48px;height:44px;border:none;padding:0;background:none">
+        <span class="small">Used for buttons, links and your navbar accent.</span></div></div>
+    <div class="card" style="background:var(--surface-muted)">
+      <div class="small" style="margin-bottom:8px">Preview</div>
+      <span class="btn btn-primary btn-sm">Primary button</span>
+      <span class="badge b-trial" style="margin-left:8px">Badge</span>
+    </div>
+  </div>
+  <div style="display:flex;gap:12px;margin-top:20px">
+    <button class="btn btn-secondary">◀ Back</button>
+    <button class="btn btn-primary" style="margin-left:auto" onclick="location.href='dashboard.html'">Next: packages ▶</button>
+  </div>
+</div>
+</body>
+</html>

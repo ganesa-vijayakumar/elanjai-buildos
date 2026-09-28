@@ -11,15 +11,24 @@ import { SiteDetailMVP } from './components/mvp/SiteDetailMVP'
 import { QuotationsMVP } from './components/mvp/QuotationsMVP'
 import { ReportsMVP } from './components/mvp/ReportsMVP'
 import { SettingsMVP } from './components/mvp/SettingsMVP'
+import { UserManagementMVP } from './components/mvp/UserManagementMVP'
+import { useNavigate } from 'react-router-dom'
 
 // Type for active views in the MVP
-type ActiveView = 'dashboard' | 'site-detail' | 'quotations' | 'reports' | 'settings'
+export type ActiveView = 'dashboard' | 'site-detail' | 'quotations' | 'reports' | 'settings' | 'users' | 'billing'
 
 function AppContent() {
     const isMobile = useIsMobile()
     const { user, loading, role } = useAuth()
+    const nav = useNavigate()
     const [activeView, setActiveView] = useState<ActiveView>('dashboard')
     const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
+
+    const goTo = (view: ActiveView) => {
+        if (view === 'billing') { nav('/billing'); return }
+        setSelectedSiteId(null)
+        setActiveView(view)
+    }
 
     // Handle site selection
     const handleSiteSelect = (siteId: string) => {
@@ -66,6 +75,8 @@ function AppContent() {
                         return <QuotationsMVP onSiteCreated={() => setActiveView('dashboard')} />
                     case 'reports':
                         return <ReportsMVP />
+                    case 'users':
+                        return <UserManagementMVP />
                     case 'settings':
                         return <SettingsMVP />
                     default:
@@ -100,10 +111,7 @@ function AppContent() {
 
             <NavbarMVP
                 activeView={activeView}
-                onViewChange={(view) => {
-                    setActiveView(view)
-                    setSelectedSiteId(null)
-                }}
+                onViewChange={(view) => goTo(view as ActiveView)}
             />
 
             {/* Navigation tabs for owner or admin */}
@@ -141,6 +149,24 @@ function AppContent() {
                             >
                                 Reports
                             </button>
+                            <button
+                                onClick={() => goTo('users')}
+                                aria-current={activeView === 'users' ? 'page' : undefined}
+                                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeView === 'users'
+                                    ? 'border-red-600 text-red-600'
+                                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                                    }`}
+                            >
+                                Users
+                            </button>
+                            {role === 'owner' && (
+                                <button
+                                    onClick={() => goTo('billing')}
+                                    className="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-900 transition-colors whitespace-nowrap"
+                                >
+                                    Billing
+                                </button>
+                            )}
                             <button
                                 onClick={() => setActiveView('settings')}
                                 aria-current={activeView === 'settings' ? 'page' : undefined}

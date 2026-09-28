@@ -1,0 +1,120 @@
+{
+  "projectId": "elanjai-buildos",
+  "name": "ElanjaiBuildos",
+  "client": {
+    "name": "Elanjai",
+    "contact": "internal",
+    "currency": "INR"
+  },
+  "domain": "construction-saas",
+  "schemaVersion": "1.0",
+  "appType": "web",
+  "status": "active",
+  "stage": "requirement",
+  "modelTier": "balanced",
+  "createdAt": "2026-09-27T00:00:00+05:30",
+  "updatedAt": "2026-09-27T00:00:00+05:30",
+  "idCounters": {
+    "REQ": 0,
+    "US": 0,
+    "BR": 0,
+    "ENT": 0,
+    "ROLE": 0,
+    "NFR": 0,
+    "SCR": 0,
+    "D": 0,
+    "RISK": 0,
+    "F": 0,
+    "S": 0,
+    "N": 0,
+    "R": 0
+  },
+  "resolvedStack": {
+    "frontend": "react",
+    "frontendUi": "radix-shadcn",
+    "frontendState": "context",
+    "frontendData": "react-query",
+    "backend": "springboot",
+    "orm": "jpa",
+    "database": "postgres",
+    "migration": "flyway"
+  },
+  "techProfile": "react-springboot-postgres",
+  "deployPlatform": "self-hosted",
+  "deployAdapterPath": "D:/elanjaitech/source/prompt-house/pipelines/shared/deploy-adapters/self-hosted",
+  "tenancy": {
+    "mode": "multi",
+    "isolationStrategy": "schema-per-tenant",
+    "schemaPrefix": "t_",
+    "schemaMaxLength": 32,
+    "tenantCodeSource": "subdomain",
+    "onboardingFlow": "hybrid",
+    "subscription": true,
+    "featureToggles": true,
+    "usageLimits": true,
+    "adminConsoleSeparate": true
+  },
+  "security": {
+    "auth": "jwt",
+    "jwtRefresh": false,
+    "jwtBlacklist": false,
+    "mfa": false,
+    "rateLimit": true,
+    "recaptcha": false,
+    "adminIpAllowlist": false,
+    "publicApiKeys": false,
+    "webhookSigning": false
+  },
+  "observability": {
+    "errorTracking": "none",
+    "structuredLogging": false,
+    "loggingFormat": "text",
+    "metrics": "none",
+    "auditLog": false,
+    "correlationIds": false
+  },
+  "demo": {
+    "credentialsEnabled": true,
+    "visibleEnvironments": ["dev", "local", "pre"],
+    "hideInProduction": true,
+    "dataDomains": ["general"],
+    "tenantAware": true,
+    "preProdDedicated": false
+  },
+  "testing": {
+    "e2eFramework": "playwright",
+    "e2eTags": ["smoke", "full", "demo"],
+    "e2eEnvs": ["local"],
+    "unitBackend": "junit5",
+    "unitFrontend": "vitest",
+    "integrationTool": "testcontainers",
+    "loadEnabled": false
+  },
+  "docs": {
+    "adr": false,
+    "testCaseStrategy": false,
+    "featureCatalog": false,
+    "handoverPack": true,
+    "runbook": true
+  },
+  "promptVersion": "v2",
+  "gates": {
+    "tenancyDesignReview": true,
+    "devRequiresSignedProposal": false,
+    "promotePreRequiresSmokeTests": false,
+    "promoteProdRequiresManualApproval": true
+  },
+  "stageStatuses": {
+    "requirement": { "status": "PENDING" },
+    "design": { "status": "PENDING" },
+    "development": { "status": "PENDING" }
+  },
+  "costTracking": {
+    "cumulativeTokens": 0,
+    "cumulativeCost": 0,
+    "budgetRemaining": 1000000,
+    "tokenBudget": 1000000,
+    "creditBudget": 500,
+    "currency": "USD"
+  }
+}

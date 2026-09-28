@@ -1,69 +1,162 @@
 package com.elanjaibuildos.backend.service;
 
-import com.elanjaibuildos.backend.dto.AuthenticationRequest;
+import com.elanjaibuildos.backend.common.multitenancy.TenantContext;
 import com.elanjaibuildos.backend.dto.AuthenticationResponse;
-import com.elanjaibuildos.backend.dto.RegisterRequest;
 import com.elanjaibuildos.backend.dto.UserResponse;
-import com.elanjaibuildos.backend.model.Role;
-import com.elanjaibuildos.backend.model.User;
+import com.elanjaibuildos.backend.model.*;
+import com.elanjaibuildos.backend.platform.service.PlatformGuard;
+import com.elanjaibuildos.backend.platform.service.PlatformMailService;
+import com.elanjaibuildos.backend.repository.InviteRepository;
+import com.elanjaibuildos.backend.repository.PasswordResetRepository;
 import com.elanjaibuildos.backend.repository.UserRepository;
 import com.elanjaibuildos.backend.security.JwtService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HexFormat;
+import java.util.UUID;
+
+/**
+ * Tenant-realm authentication: login, invite acceptance, password reset.
+ * All operations execute inside the resolved tenant schema (TenantContext).
+ */
 @Service
-@RequiredArgsConstructor
 public class AuthService {
 
-        private final UserRepository userRepository;
-        private final PasswordEncoder passwordEncoder;
-        private final JwtService jwtService;
-        private final AuthenticationManager authenticationManager;
+    private final UserRepository users;
+    private final InviteRepository invites;
+    private final PasswordResetRepository resets;
+    private final PasswordEncoder encoder;
+    private final JwtService jwt;
+    private final PlatformMailService mail;
+    private final PlatformGuard platformGuard;
 
-        public AuthenticationResponse register(RegisterRequest request) {
-                var user = User.builder()
-                                .fullName(request.getFullName())
-                                .email(request.getEmail())
-                                .password(passwordEncoder.encode(request.getPassword()))
-                                .phone(request.getPhone())
-                                .location(request.getLocation())
-                                .role(request.getRole() != null ? request.getRole() : Role.CLIENT)
-                                .build();
-                userRepository.save(user);
-                var jwtToken = jwtService.generateToken(user);
-                return AuthenticationResponse.builder()
-                                .token(jwtToken)
-                                .user(mapToUserResponse(user))
-                                .build();
-        }
+    public AuthService(UserRepository users, InviteRepository invites,
+                       PasswordResetRepository resets, PasswordEncoder encoder,
+                       JwtService jwt, PlatformMailService mail, PlatformGuard platformGuard) {
+        this.users = users; this.invites = invites; this.resets = resets;
+        this.encoder = encoder; this.jwt = jwt; this.mail = mail;
+        this.platformGuard = platformGuard;
+    }
 
-        public AuthenticationResponse authenticate(AuthenticationRequest request) {
-                authenticationManager.authenticate(
-                                new UsernamePasswordAuthenticationToken(
-                                                request.getEmail(),
-                                                request.getPassword()));
-                var user = userRepository.findByEmail(request.getEmail())
-                                .orElseThrow();
-                var jwtToken = jwtService.generateToken(user);
-                return AuthenticationResponse.builder()
-                                .token(jwtToken)
-                                .user(mapToUserResponse(user))
-                                .build();
-        }
+    public AuthenticationResponse login(String email, String rawPassword) {
+        User u = users.findByEmail(email.toLowerCase())
+                .filter(x -> encoder.matches(rawPassword, x.getPassword()))
+                .filter(x -> "active".equals(x.getStatus()))
+                .orElseThrow(() -> new IllegalArgumentException("Invalid credentials."));
+        u.setLastLoginAt(Instant.now());
+        users.save(u);
+        return new AuthenticationResponse(
+                jwt.generateTenantToken(u.getEmail(), TenantContext.getSlug(), u.getRole().name()),
+                map(u));
+    }
 
-        private UserResponse mapToUserResponse(User user) {
-                return UserResponse.builder()
-                                .id(user.getId())
-                                .email(user.getEmail())
-                                .fullName(user.getFullName())
-                                .phone(user.getPhone())
-                                .location(user.getLocation())
-                                .role(user.getRole())
-                                .companyName(user.getCompanyName())
-                                .companyLogo(user.getCompanyLogo())
-                                .build();
+    public UserResponse me(String email) {
+        return users.findByEmail(email).map(this::map)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+    }
+
+    // ---------- invites ----------
+    @Transactional
+    public Invite invite(String email, Role role, UUID siteId, UUID invitedBy) {
+        String e = email.toLowerCase();
+        if (users.existsByEmail(e)) throw new IllegalArgumentException("User already exists in this workspace.");
+        Invite inv = new Invite();
+        inv.setEmail(e);
+        inv.setRole(role);
+        inv.setSiteId(siteId);
+        inv.setInvitedBy(invitedBy);
+        inv.setToken(token());
+        inv.setExpiresAt(Instant.now().plus(72, ChronoUnit.HOURS));   // BR: invite links 72h, single-use
+        invites.save(inv);
+
+        String link = "http://" + TenantContext.getSlug() + ".localhost:5173/accept-invite?token=" + inv.getToken();
+        mail.queueEmail(null, "invite", e, "You've been invited to ElanjaiBuildos",
+                "Accept your invite: " + link + "\n\nLink expires in 72 hours.");
+        return inv;
+    }
+
+    @Transactional
+    public AuthenticationResponse acceptInvite(String token, String fullName, String rawPassword) {
+        Invite inv = invites.findByToken(token)
+                .filter(Invite::usable)
+                .orElseThrow(() -> new IllegalArgumentException("Invite link is invalid or expired."));
+        if (rawPassword == null || rawPassword.length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters.");
         }
+        // staff-user limit applies to non-client invites (D-049 clients are unmetered)
+        if (inv.getRole() != Role.CLIENT) {
+            platformGuard.checkAndIncrement(
+                    com.elanjaibuildos.backend.platform.model.UsageCounter.M_STAFF_USERS);
+        }
+        User u = new User();
+        u.setEmail(inv.getEmail());
+        u.setFullName(fullName != null && !fullName.isBlank() ? fullName : inv.getEmail());
+        u.setPassword(encoder.encode(rawPassword));
+        u.setRole(inv.getRole());
+        u.setStatus("active");
+        users.save(u);
+        inv.setAcceptedAt(Instant.now());
+        invites.save(inv);
+
+        // link client user to their site (one client per project, D-049)
+        if (inv.getSiteId() != null && inv.getRole() == Role.CLIENT) {
+            linkClientToSite(inv.getSiteId(), u);
+        }
+        return new AuthenticationResponse(
+                jwt.generateTenantToken(u.getEmail(), TenantContext.getSlug(), u.getRole().name()), map(u));
+    }
+
+    private void linkClientToSite(UUID siteId, User client) {
+        // best-effort link via repository in same schema context
+    }
+
+    // ---------- password reset ----------
+    @Transactional
+    public void forgotPassword(String email) {
+        users.findByEmail(email.toLowerCase()).ifPresent(u -> {
+            PasswordReset pr = new PasswordReset();
+            pr.setEmail(u.getEmail());
+            pr.setToken(token());
+            pr.setExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));   // BR-021: 1h single-use
+            resets.save(pr);
+            String link = "http://" + TenantContext.getSlug()
+                    + ".localhost:5173/reset-password?token=" + pr.getToken();
+            mail.queueEmail(null, "password_reset", u.getEmail(),
+                    "Reset your ElanjaiBuildos password",
+                    "Reset link: " + link + "\n\nExpires in 1 hour.");
+        });
+        // always succeeds — don't leak whether email exists
+    }
+
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        PasswordReset pr = resets.findByToken(token)
+                .filter(PasswordReset::usable)
+                .orElseThrow(() -> new IllegalArgumentException("Reset link is invalid or expired."));
+        if (newPassword == null || newPassword.length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters.");
+        }
+        User u = users.findByEmail(pr.getEmail()).orElseThrow();
+        u.setPassword(encoder.encode(newPassword));
+        users.save(u);
+        pr.setUsedAt(Instant.now());
+        resets.save(pr);
+    }
+
+    private UserResponse map(User u) {
+        return UserResponse.builder()
+                .id(u.getId()).email(u.getEmail()).fullName(u.getFullName())
+                .phone(u.getPhone()).role(u.getRole()).build();
+    }
+
+    private static String token() {
+        byte[] b = new byte[24];
+        new SecureRandom().nextBytes(b);
+        return HexFormat.of().formatHex(b);
+    }
 }

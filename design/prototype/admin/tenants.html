@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tenants — ElanjaiBuildos Admin</title>
+<link rel="stylesheet" href="../prototype.css">
+</head>
+<body>
+<div class="admin">
+  <aside class="side">
+    <div class="brand"><span class="mark" style="background:var(--indigo-600)">E</span>Platform</div>
+    <a href="dashboard.html">Dashboard</a>
+    <a class="on" href="tenants.html">Tenants</a>
+    <a href="approvals.html">Approvals <span class="badge b-trial">3</span></a>
+    <a href="#">Plans</a><a href="#">Billing</a><a href="#">Settings</a><a href="#">Audit Log</a>
+  </aside>
+  <main class="main">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <h2>Tenants</h2>
+      <div style="display:flex;gap:8px">
+        <input class="input" placeholder="Search name or slug…" style="min-width:220px" data-testid="tenant-search">
+        <select class="input"><option>All statuses</option><option>Trial</option><option>Active</option><option>Grace</option><option>Suspended</option></select>
+      </div>
+    </div>
+    <div class="card" style="margin-top:20px;padding:0">
+      <table class="table">
+        <thead><tr><th>Tenant</th><th>Slug</th><th>Plan</th><th>Status</th><th>Users</th><th>Since</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Acme Builders</td><td>acme</td><td>Pro</td><td><span class="badge b-trial">TRIAL</span></td><td>4/5</td><td>Sep 14</td><td><a href="tenant-detail.html">View</a></td></tr>
+          <tr><td>SS Constructions</td><td>ssc</td><td>Starter</td><td><span class="badge b-active">ACTIVE</span></td><td>2/2</td><td>Aug 02</td><td><a href="tenant-detail.html">View</a></td></tr>
+          <tr><td>Vaigai Builders</td><td>vaigai</td><td>Business</td><td><span class="badge b-grace">GRACE</span></td><td>12/15</td><td>Jul 19</td><td><a href="tenant-detail.html">View</a></td></tr>
+          <tr><td>Kovai Homes</td><td>kovai</td><td>Pro</td><td><span class="badge b-susp">SUSPENDED</span></td><td>3/5</td><td>Jun 30</td><td><a href="tenant-detail.html">View</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</body>
+</html>

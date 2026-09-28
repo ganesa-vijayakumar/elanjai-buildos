@@ -11,7 +11,6 @@ import com.elanjaibuildos.backend.repository.SiteRepository;
 import com.elanjaibuildos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -109,12 +108,9 @@ public class ExpenseService {
     }
 
     private User getCurrentUser() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (principal instanceof UserDetails) {
-            String email = ((UserDetails) principal).getUsername();
-            return userRepository.findByEmail(email).orElseThrow();
-        }
-        throw new RuntimeException("User not found in context");
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) throw new RuntimeException("User not found in context");
+        return userRepository.findByEmail(auth.getName()).orElseThrow();
     }
 
     private ExpenseResponse mapToResponse(Expense expense) {

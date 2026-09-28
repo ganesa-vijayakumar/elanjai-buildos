@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" style="--tenant-primary:#0e7490;--tenant-primary-hover:#155e75">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>New quotation — Acme Builders</title>
+<link rel="stylesheet" href="../prototype.css">
+</head>
+<body>
+<nav class="topnav"><div class="container">
+  <span class="brand"><span class="mark">A</span>Acme Builders</span>
+  <div class="navlinks"><a href="dashboard.html">Dashboard</a><a href="site-detail.html">Sites</a>
+    <a class="on" href="quotation.html">Quotations</a><a href="labor.html">Labor</a><a href="#">Settings</a></div>
+  <button class="burger" aria-label="Menu">☰</button>
+</div></nav>
+<div class="container" style="padding:24px 16px 64px;max-width:840px">
+  <h2>New quotation</h2>
+  <p class="small">QTN-2026-00041 · Draft</p>
+  <div class="steps" style="max-width:520px">
+    <div class="step done">Client</div><div class="step now">Package</div>
+    <div class="step">Details</div><div class="step">Review</div>
+  </div>
+  <div class="card">
+    <h3 style="margin-bottom:16px">Select package</h3>
+    <div class="grid" style="gap:12px">
+      <label class="card" style="cursor:pointer"><input type="radio" name="pkg"> <b>Basic</b> — ₹1,850/sqft <div class="small">Standard materials, essential provisions</div></label>
+      <label class="card" style="cursor:pointer;border-color:var(--action)"><input type="radio" name="pkg" checked> <b>Standard</b> — ₹2,150/sqft <div class="small">Branded fittings, more provisions</div></label>
+      <label class="card" style="cursor:pointer"><input type="radio" name="pkg"> <b>Premium</b> — ₹2,650/sqft <div class="small">Premium brands, full provisions</div></label>
+    </div>
+    <div class="card" style="background:var(--surface-muted);margin-top:16px">
+      <div class="small">Built-up area</div>
+      <div style="display:flex;gap:12px;align-items:center;margin-top:6px">
+        <input class="input" style="max-width:120px" value="1,850" aria-label="area sqft">
+        <span class="muted">sqft × ₹2,150</span>
+        <b style="margin-left:auto;font-size:1.25rem">₹39,77,500</b>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:12px;margin-top:20px">
+    <button class="btn btn-secondary">◀ Back</button>
+    <button class="btn btn-primary" style="margin-left:auto" data-testid="quote-next">Next: stage &amp; material details ▶</button>
+  </div>
+  <p class="small" style="margin-top:12px">Next step edits stage lines (must total 100%), floor materials, electrical provisions and extra works.</p>
+</div>
+</body>
+</html>

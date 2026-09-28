@@ -1,40 +1,40 @@
 import axios from 'axios';
+import { currentTenantSlug } from './tenant';
 
 const api = axios.create({
-    baseURL: 'http://localhost:8080/api',
+    baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
-// Add a request interceptor to add the JWT token to requests
+// Attach JWT + tenant context (X-Tenant-ID dev fallback; subdomains in prod).
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('jwt_token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+        const slug = currentTenantSlug();
+        if (slug) {
+            config.headers['X-Tenant-ID'] = slug;
+        }
         return config;
     },
-    (error) => {
-        return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
 );
 
-// Add a response interceptor to handle 401 errors
 api.interceptors.response.use(
-    (response) => {
-        return response;
-    },
+    (response) => response,
     (error) => {
-        if (error.response && error.response.status === 401) {
-            // Clear local storage and redirect to login only on 401 (Unauthorized)
-            // 403 (Forbidden) means the user is authenticated but lacks permission —
-            // this should NOT log the user out, it should be handled by the calling component
+        const status = error.response?.status;
+        if (status === 401) {
             localStorage.removeItem('jwt_token');
             localStorage.removeItem('user_data');
             window.location.href = '/login';
         }
+        // 403 TENANT_MISMATCH / PLAN_LIMIT / FEATURE_LOCKED / TENANT_READ_ONLY
+        // surface to callers — do not force logout.
         return Promise.reject(error);
     }
 );

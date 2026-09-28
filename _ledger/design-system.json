@@ -1,0 +1,47 @@
+{
+  "appShape": { "shapeId": "web", "version": "1.0", "supportState": "BASELINE_SUPPORTED" },
+  "tokens": {
+    "colors": {
+      "source": "design/tokens.json",
+      "semantic": ["surface-page","surface-card","surface-muted","border-default","border-strong","text-primary","text-secondary","text-muted","action-primary","action-primary-hover","action-primary-fg","status-success","status-warning","status-danger","focus-ring"],
+      "tenantStatus": ["trial","active","grace","suspended","pending"]
+    },
+    "typography": { "family": "Inter/system-ui", "scale": "xs..4xl", "weights": ["400","500","600","700"] },
+    "spacing": { "scale": "4px base, spacing.1..16" },
+    "radii": { "sm": "4px", "md": "8px", "lg": "12px", "xl": "16px", "full": "pill" },
+    "shadows": { "sm": "subtle", "md": "card", "lg": "modal" }
+  },
+  "components": [
+    { "name": "Button", "type": "input", "variants": ["primary","secondary","ghost","danger"], "states": ["default","hover","focus","disabled","loading"] },
+    { "name": "Input", "type": "input", "variants": ["text","email","password","number","search","select","textarea"], "states": ["default","focus","error","disabled"] },
+    { "name": "Card", "type": "layout", "variants": ["default","kpi","interactive"], "states": ["default","hover"] },
+    { "name": "DataTable", "type": "display", "variants": ["default","compact","card-rows-mobile"], "states": ["loading","empty","error","paginated"] },
+    { "name": "Badge", "type": "display", "variants": ["status","plan","role","verified"], "states": ["default"] },
+    { "name": "Modal", "type": "overlay", "variants": ["default","destructive-confirm","form"], "states": ["open","submitting"] },
+    { "name": "Toast", "type": "feedback", "variants": ["success","error","info"], "states": ["visible","dismissed"] },
+    { "name": "Banner", "type": "feedback", "variants": ["trial","grace","error","info"], "states": ["visible","dismissed"] },
+    { "name": "Sidebar", "type": "nav", "variants": ["admin-console"], "states": ["expanded","collapsed-mobile"] },
+    { "name": "TopNav", "type": "nav", "variants": ["tenant","public"], "states": ["default","scrolled"] },
+    { "name": "Tabs", "type": "nav", "variants": ["horizontal","segmented"], "states": ["active","inactive"] },
+    { "name": "Stepper", "type": "nav", "variants": ["wizard"], "states": ["current","done","todo"] },
+    { "name": "UsageMeter", "type": "display", "variants": ["bar"], "states": ["under","near-limit","over"] },
+    { "name": "PhotoUploader", "type": "input", "variants": ["camera-capture"], "states": ["idle","uploading","error"] },
+    { "name": "Avatar", "type": "display", "variants": ["user","tenant-logo"], "states": ["default"] },
+    { "name": "EmptyState", "type": "feedback", "variants": ["icon-headline-cta"], "states": ["default"] },
+    { "name": "Skeleton", "type": "feedback", "variants": ["row","card","table"], "states": ["animating"] },
+    { "name": "AttendanceToggle", "type": "input", "variants": ["P-H-A-L"], "states": ["selected","unselected"] },
+    { "name": "PaywallPanel", "type": "feedback", "variants": ["grace","suspended","limit","feature-locked"], "states": ["default"] }
+  ],
+  "conventions": {
+    "testids": "data-testid on every interactive element (e.g. signup-submit, approve-button); data-component for component root",
+    "a11y": "semantic HTML, aria-labels on icon buttons, focus-visible ring = focus-ring token, touch targets >=44px"
+  },
+  "tenantUx": {
+    "selectionMode": "subdomain",
+    "onboardingSteps": ["company profile","logo+accent color","packages review","stage template review","finish→dashboard"],
+    "adminConsoleIa": ["dashboard","tenants","approvals","plans","billing","settings","audit"],
+    "brandingTokens": ["--tenant-logo-url","--tenant-primary","--tenant-primary-hover","--tenant-favicon"],
+    "mobilePatterns": ["bottom-fixed primary action","tables→cards","filter sheets","camera-capture upload","offline-loss banner"]
+  },
+  "mobilePatterns": { "breakpointBase": 375, "touchTargetDp": 44, "bottomNavItems": [] }
+}

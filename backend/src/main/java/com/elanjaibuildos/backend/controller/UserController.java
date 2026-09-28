@@ -3,13 +3,16 @@ package com.elanjaibuildos.backend.controller;
 import com.elanjaibuildos.backend.dto.RegisterRequest;
 import com.elanjaibuildos.backend.dto.UserResponse;
 import com.elanjaibuildos.backend.model.Role;
+import com.elanjaibuildos.backend.service.AuthService;
 import com.elanjaibuildos.backend.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -18,6 +21,7 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final AuthService authService;
 
     @GetMapping
     public ResponseEntity<List<UserResponse>> getAllUsers(
@@ -55,5 +59,30 @@ public class UserController {
     public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // ---------- Invites (D-046: Owner/Admin invite staff; client invites link to a site) ----------
+    public record InviteBody(String email, String role, UUID siteId) {}
+
+    @PostMapping("/invite")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
+    public ResponseEntity<?> invite(@RequestBody InviteBody b, Authentication auth) {
+        try {
+            Role role = Role.valueOf(b.role().toUpperCase());
+            var inv = authService.invite(b.email(), role, b.siteId(), actorId(auth));
+            return ResponseEntity.accepted().body(Map.of(
+                    "inviteId", inv.getId(), "email", inv.getEmail(),
+                    "expiresAt", inv.getExpiresAt().toString()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "BAD_REQUEST", "message", e.getMessage()));
+        }
+    }
+
+    private UUID actorId(Authentication auth) {
+        if (auth != null && auth.getDetails() instanceof Map<?, ?> d && d.get("userId") != null) {
+            return UUID.fromString(d.get("userId").toString());
+        }
+        return null;
     }
 }

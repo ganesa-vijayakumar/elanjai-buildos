@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" style="--tenant-primary:#0e7490;--tenant-primary-hover:#155e75">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Billing — Acme Builders</title>
+<link rel="stylesheet" href="../prototype.css">
+</head>
+<body>
+<nav class="topnav"><div class="container">
+  <span class="brand"><span class="mark">A</span>Acme Builders</span>
+  <div class="navlinks"><a href="dashboard.html">Dashboard</a><a href="#">Sites</a><a href="#">Reports</a><a class="on" href="billing.html">Billing</a></div>
+  <button class="burger" aria-label="Menu">☰</button>
+</div></nav>
+<div class="container" style="padding:24px 16px 64px;max-width:760px">
+  <div class="banner banner-trial">Trial ends <b>Sep 29</b> — subscribe to keep your workspace active.</div>
+  <div class="card" style="margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+      <div><h3>Professional</h3><p class="small">₹2,999/month + GST · monthly cycle</p></div>
+      <button class="btn btn-primary" data-testid="pay-btn">Pay via Razorpay</button>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:20px">
+    <h3 style="margin-bottom:12px">Usage this period</h3>
+    <div class="grid grid-2">
+      <div><div class="small">Staff users</div><div class="meter" style="margin:6px 0"><i style="width:80%"></i></div><b>4 / 5</b></div>
+      <div><div class="small">Projects</div><div class="meter" style="margin:6px 0"><i style="width:60%"></i></div><b>12 / 20</b></div>
+      <div><div class="small">Quotations this month</div><div class="meter warn" style="margin:6px 0"><i style="width:82%"></i></div><b>41 / 50</b></div>
+      <div><div class="small">Storage</div><div class="meter" style="margin:6px 0"><i style="width:62%"></i></div><b>6.2 / 10 GB</b></div>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:20px">
+    <h3 style="margin-bottom:12px">Invoices</h3>
+    <table class="table"><thead><tr><th>#</th><th>Period</th><th>Total</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      <tr><td>INV-2026-00012</td><td>Sep 29 – Oct 29</td><td>₹3,538.82</td><td><span class="badge b-pend">draft</span></td><td><a href="#">PDF ⤓</a></td></tr>
+    </tbody></table>
+  </div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <button class="btn btn-secondary">Upgrade to Business ▲</button>
+    <button class="btn btn-secondary">Downgrade to Starter (at renewal)</button>
+    <button class="btn btn-ghost" style="color:var(--danger)" data-testid="cancel-sub">Cancel subscription…</button>
+  </div>
+</div>
+</body>
+</html>

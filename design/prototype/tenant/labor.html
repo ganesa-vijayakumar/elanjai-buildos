@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" style="--tenant-primary:#0e7490;--tenant-primary-hover:#155e75">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Daily entry — Villa 42</title>
+<link rel="stylesheet" href="../prototype.css">
+<style>
+.atabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;overflow-x:auto}
+.atabs button{padding:10px 16px;border:none;background:none;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent;white-space:nowrap}
+.atabs button.on{color:var(--action);border-color:var(--action)}
+.wrow{display:flex;align-items:center;gap:10px;padding:12px 8px;border-bottom:1px solid var(--border)}
+.wrow:last-child{border-bottom:none}
+.tog{display:flex;border:1px solid var(--border-strong);border-radius:var(--r-md);overflow:hidden}
+.tog button{min-width:44px;min-height:44px;border:none;background:var(--white);font-weight:600;color:var(--text-3)}
+.tog button.sel{background:var(--action);color:#fff}
+.sticky-save{position:sticky;bottom:0;background:var(--white);border-top:1px solid var(--border);padding:12px 16px;margin:0 -16px}
+</style>
+</head>
+<body>
+<nav class="topnav"><div class="container">
+  <span class="brand"><span class="mark">A</span>Acme Builders</span>
+  <div class="navlinks"><a href="dashboard.html">Dashboard</a><a href="site-detail.html">Sites</a>
+    <a href="quotation.html">Quotations</a><a class="on" href="labor.html">Labor</a></div>
+  <button class="burger" aria-label="Menu">☰</button>
+</div></nav>
+<div class="container" style="padding:20px 16px 80px;max-width:720px">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <h2 style="flex:1">Villa 42</h2>
+    <input class="input" type="date" value="2026-09-27" style="max-width:160px" aria-label="entry date">
+  </div>
+  <div class="atabs" role="tablist">
+    <button class="on" role="tab">Attendance</button>
+    <button role="tab">Materials</button>
+    <button role="tab">Expense</button>
+    <button role="tab">Photos</button>
+  </div>
+  <div class="card" style="padding:0 16px">
+    <div class="wrow"><div style="flex:1"><b>Kumar</b><div class="small">Mason · ₹850/day</div></div>
+      <div class="tog" data-testid="att-kumar"><button class="sel">P</button><button>½</button><button>A</button><button>L</button></div></div>
+    <div class="wrow"><div style="flex:1"><b>Raja</b><div class="small">Helper · ₹700/day</div></div>
+      <div class="tog"><button class="sel">P</button><button>½</button><button>A</button><button>L</button></div></div>
+    <div class="wrow"><div style="flex:1"><b>Senthil</b><div class="small">Bar bender · ₹950/day</div></div>
+      <div class="tog"><button>P</button><button class="sel" style="background:var(--amber-600)">½</button><button>A</button><button>L</button></div></div>
+    <div class="wrow"><div style="flex:1"><b>Murugan</b><div class="small">Helper · ₹700/day · advance ₹2,000</div></div>
+      <div class="tog"><button>P</button><button>½</button><button class="sel" style="background:var(--danger)">A</button><button>L</button></div></div>
+  </div>
+  <div class="sticky-save">
+    <button class="btn btn-primary" style="width:100%" data-testid="save-attendance">Save attendance — 18 present</button>
+  </div>
+</div>
+</body>
+</html>

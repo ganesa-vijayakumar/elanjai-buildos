@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en" style="--tenant-primary:#0e7490;--tenant-primary-hover:#155e75">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Villa 42 — Site detail</title>
+<link rel="stylesheet" href="../prototype.css">
+</head>
+<body>
+<nav class="topnav"><div class="container">
+  <span class="brand"><span class="mark">A</span>Acme Builders</span>
+  <div class="navlinks"><a href="dashboard.html">Dashboard</a><a class="on" href="#">Sites</a>
+    <a href="quotation.html">Quotations</a><a href="labor.html">Labor</a><a href="#">Reports</a></div>
+  <button class="burger" aria-label="Menu">☰</button>
+</div></nav>
+<div class="container" style="padding:24px 20px 64px">
+  <a href="dashboard.html" class="small">◀ All sites</a>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 6px">
+    <h2>Villa 42, OMR</h2><span class="badge b-active">on track</span>
+  </div>
+  <p class="small" style="margin-bottom:24px">Client: R. Meena · 1,850 sqft · Standard pkg · ₹39.8L contract</p>
+
+  <div class="grid" style="grid-template-columns:1fr;gap:20px" id="wrap">
+    <div class="card">
+      <h3 style="margin-bottom:18px">Construction stages</h3>
+      <div class="timeline">
+        <div class="tl-item done"><b>Foundation</b> <span class="chip">18%</span>
+          <div class="small">₹7.0L spent / ₹7.2L · completed Aug 20</div></div>
+        <div class="tl-item done"><b>Structure</b> <span class="chip">25%</span>
+          <div class="small">₹8.8L / ₹9.9L · completed Sep 10</div></div>
+        <div class="tl-item now"><b>Roof slab</b> <span class="chip">12%</span>
+          <div class="small">₹2.1L / ₹4.8L · in progress — due Oct 05</div></div>
+        <div class="tl-item"><b>Masonry</b> <span class="chip">15%</span>
+          <div class="small">₹6.0L budget · starts next</div></div>
+        <div class="tl-item"><b>Plastering &amp; finishing</b> <span class="chip">30%</span>
+          <div class="small">₹12.0L budget</div></div>
+      </div>
+      <p class="small" style="margin-top:8px">Stage weights total 100% — <a href="#">edit template for this site</a></p>
+    </div>
+    <div style="display:grid;gap:20px">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3>Collections</h3><button class="btn btn-sm btn-secondary">+ Record</button></div>
+        <table class="table"><tbody>
+          <tr><td>Sep 12 · Roof slab</td><td>₹4.0L</td><td><span class="badge b-active">UPI</span></td></tr>
+          <tr><td>Aug 28 · Structure</td><td>₹3.5L</td><td><span class="badge b-active">NEFT</span></td></tr>
+        </tbody></table>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3>Expenses</h3><button class="btn btn-sm btn-secondary">+ Add</button></div>
+        <table class="table"><tbody>
+          <tr><td>Cement 40 bags</td><td>₹14,800</td><td><span class="badge b-grace">pending</span></td></tr>
+          <tr><td>Steel 0.8t</td><td>₹52,000</td><td><span class="badge b-active">approved</span></td></tr>
+        </tbody></table>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:12px">Photos</h3>
+        <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px">
+          <div style="aspect-ratio:4/3;background:var(--slate-200);border-radius:var(--r-md)"></div>
+          <div style="aspect-ratio:4/3;background:var(--slate-200);border-radius:var(--r-md)"></div>
+          <div style="aspect-ratio:4/3;background:var(--slate-200);border-radius:var(--r-md)"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <style>@media(min-width:900px){#wrap{grid-template-columns:1.4fr 1fr}}</style>
+</div>
+</body>
+</html>
