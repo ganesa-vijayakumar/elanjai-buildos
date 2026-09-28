@@ -100,5 +100,4 @@ temp/
 # --------------------------------------------------------------------
 .file-manifest
 pids
-packages
 .spark-workbench-id
