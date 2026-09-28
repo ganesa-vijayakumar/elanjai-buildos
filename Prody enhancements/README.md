@@ -102,12 +102,20 @@ landing image. It must never rebuild or restart the tenant app, admin app, or ba
 | Frontend split into three workspace apps (01-architecture/02) | Done — `apps/landing`, `apps/tenant`, `apps/admin`, `packages/shared`; realm-scoped storage keys; `/login` directory + workspace guard | `a073f84`, `82e6ef0`, `eeaa9f5` |
 | Independent delivery (03-deployment/01) | Done — per-app Dockerfiles/nginx, `deploy/gateway.conf`, compose topology, path-scoped CI workflows | `64cfb36` |
 | `<local>@<slug>` username rollout (02-tenancy/01) | Done — V5 adds `users.username`; sign-in resolves email \| `<local>` \| `<local>@<slug>` with email-first precedence and suffix rejection; disjointness enforced at write time; per-tenant backfill job (`POST /api/admin/tenants/{id}/backfill-usernames`, `POST /api/admin/usernames/backfill-all`) is deterministic, collision-skipping, idempotent, audited | `db53a00`, `8ea1bd8` |
-| Tenant-track migration isolation (02-tenancy/02) | Done — `migrateAllTenants` returns a per-schema report; one failing schema no longer aborts the loop | below |
-| Backup pre-step (02-tenancy/02, 03-deployment/02) | Done — `deploy/scripts/backup-db.sh` dumps `public` + tenant schemas to a timestamped dir; required before destructive changes | below |
+| Tenant-track migration isolation (02-tenancy/02) | Done — `migrateAllTenants` returns a per-schema report; one failing schema no longer aborts the loop | `514e592` |
+| Edge/nginx hardening (03-deployment/01) | Done — edge strips `X-Tenant-ID` + rewrites `X-Forwarded-*`; per-app CSP (tenant allows Razorpay), immutable `/assets/` caching, `no-cache` HTML, `noindex` on tenant/admin, `robots.txt` + OG meta on landing, `/version.txt` stamp per app | `e9d6b51` |
+| Immutable artifacts + runbook tooling (03-deployment/02) | Done — SHA-tagged images in CI, `BUILDOS_*_IMAGE` env overrides for tag/digest repoint rollback, `deploy/scripts/smoke.sh` per-stage suite (13 checks, green), `deploy/scripts/backup-db.sh` + `restore-db.sh` | `e9d6b51`, `514e592` |
 | Durable operation table (02-tenancy/02, "only if justified") | **Not adopted** — basic probing idempotency + `retry-provisioning` cover resume between steps; documented decision, revisit if a provisioning step becomes expensive or externally visible audit is needed | — |
-| Digest promotion, SEO/observability | **Not started** — Phase B/C per the phase map | — |
+| Non-dev deployment target (registry, DNS, TLS, wildcard cert) | **Out of dev scope** per `requirement.md` — compose + image/digest mechanics are in place for it | — |
+| Observability/analytics (04-quality P2) | **Not started** — adopt only as warranted | — |
 
 Verified end-to-end on `develop`: all four images build; `docker compose up`
 serves landing at apex/www, admin at `admin.<base>`, and the shared workspace at
 `<slug>.<base>` through the gateway; the workspace-status endpoint answers
 through the full proxy chain; unknown workspaces return 404/WorkspaceNotFound.
+`deploy/scripts/smoke.sh` asserts every host class, same-origin `/api/` reach,
+`robots.txt`, and `version.txt` — 13/13 green. Header sanitization verified by
+differential: `X-Tenant-ID` sent to the edge is dropped (tenant login on the
+apex fails closed), while the same header direct to the backend still resolves
+in dev mode. Username sign-in (`email` | `<local>` | `<local>@<slug>`) verified
+through the gateway on the live stack.
