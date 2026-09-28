@@ -10,7 +10,7 @@ interface UseUsersReturn {
     refreshClients: () => Promise<void>;
     refreshSiteManagers: () => Promise<void>;
     createUser: (userData: { full_name: string; phone?: string; email?: string; location?: string; role: 'CLIENT' | 'SITE_MANAGER', password?: string }) => Promise<{ data: Profile | null; error: string | null; temporaryPassword?: string }>;
-    updateUser: (userId: string, userData: { full_name: string; phone?: string; location?: string; role?: string; password?: string }) => Promise<{ data: Profile | null; error: string | null }>;
+    updateUser: (userId: string, userData: { full_name: string; phone?: string; location?: string; role?: string; password?: string; username?: string }) => Promise<{ data: Profile | null; error: string | null }>;
 }
 
 // Helper to map backend user to frontend Profile
@@ -20,6 +20,7 @@ const mapUserFromBackend = (user: any): Profile => {
         full_name: user.fullName || null,
         phone: user.phone || null,
         email: user.email || null,
+        username: user.username || null,
         location: user.location || null,
         role: user.role === 'OWNER' ? 'owner' :
             user.role === 'ADMIN' ? 'admin' :
@@ -106,16 +107,17 @@ export function useUsers(): UseUsersReturn {
         }
     };
 
-    const updateUser = async (userId: string, userData: { full_name: string; phone?: string; location?: string; role?: string; password?: string }) => {
+    const updateUser = async (userId: string, userData: { full_name: string; phone?: string; location?: string; role?: string; password?: string; username?: string }) => {
         try {
             setLoading(true);
-            
+
             const payload = {
                 fullName: userData.full_name,
                 phone: userData.phone,
                 location: userData.location,
                 role: userData.role,
-                ...(userData.password ? { password: userData.password } : {})
+                ...(userData.password ? { password: userData.password } : {}),
+                ...(userData.username ? { username: userData.username } : {})
             };
 
             const response = await api.put(`/users/${userId}`, payload);

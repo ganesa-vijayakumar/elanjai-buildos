@@ -66,6 +66,7 @@ export interface Database {
                     full_name: string | null;
                     phone: string | null;
                     email: string | null;
+                    username: string | null;
                     location: string | null;
                     role: UserRole;
                     company_name: string | null;

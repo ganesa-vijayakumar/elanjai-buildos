@@ -19,6 +19,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UsernameService usernames;
 
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
@@ -34,16 +35,27 @@ public class UserService {
 
     /** Staff user creation — full invite flow lives in AuthService.invite/acceptInvite. */
     public UserResponse createUser(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
+        String email = request.getEmail() == null ? null : request.getEmail().toLowerCase();
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email is required");
         }
+        if (userRepository.existsByEmail(email)) {
+            throw new IllegalArgumentException("Email already exists");
+        }
+        usernames.assertEmailNotUsername(email);
         User user = new User();
         user.setFullName(request.getFullName());
-        user.setEmail(request.getEmail().toLowerCase());
+        user.setEmail(email);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setPhone(request.getPhone());
         user.setRole(request.getRole() != null ? request.getRole() : Role.CLIENT);
         user.setStatus("active");
+        // new users always get a canonical username: explicit override or derived
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            usernames.assignExplicit(user, request.getUsername(), tenantSlug());
+        } else {
+            usernames.assignDerived(user, tenantSlug());
+        }
         return mapToResponse(userRepository.save(user));
     }
 
@@ -59,6 +71,10 @@ public class UserService {
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
+        // username set/reset — explicit only; null leaves the current value untouched
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            usernames.assignExplicit(user, request.getUsername(), tenantSlug());
+        }
         return mapToResponse(userRepository.save(user));
     }
 
@@ -72,10 +88,17 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
+    private String tenantSlug() {
+        String slug = com.elanjaibuildos.backend.common.multitenancy.TenantContext.getSlug();
+        if (slug == null) throw new IllegalStateException("No tenant context bound to this request");
+        return slug;
+    }
+
     private UserResponse mapToResponse(User user) {
         return UserResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
+                .username(user.getUsername())
                 .fullName(user.getFullName())
                 .phone(user.getPhone())
                 .role(user.getRole())

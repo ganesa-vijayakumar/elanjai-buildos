@@ -21,6 +21,10 @@ public class User {
     @Column(nullable = false, unique = true, length = 190)
     private String email;
 
+    /** Canonical sign-in identifier <local>@<slug>; NULL until backfilled (legacy rows). */
+    @Column(unique = true, length = 100)
+    private String username;
+
     @Column(nullable = false, length = 100)
     private String password;
 
@@ -49,6 +53,8 @@ public class User {
     public void setId(UUID id) { this.id = id; }
     public String getEmail() { return email; }
     public void setEmail(String v) { this.email = v; }
+    public String getUsername() { return username; }
+    public void setUsername(String v) { this.username = v; }
     public String getPassword() { return password; }
     public void setPassword(String v) { this.password = v; }
     public String getFullName() { return fullName; }

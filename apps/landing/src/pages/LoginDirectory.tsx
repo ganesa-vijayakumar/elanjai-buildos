@@ -14,7 +14,11 @@ export function LoginDirectory() {
 
     const go = async (e: React.FormEvent) => {
         e.preventDefault()
-        const s = slug.trim().toLowerCase()
+        // Accept a workspace slug OR a canonical username "local@slug" — the apex
+        // only parses the suffix and navigates; no credentials or tenant lookup here.
+        let s = slug.trim().toLowerCase()
+        const at = s.lastIndexOf('@')
+        if (at > 0) s = s.slice(at + 1)
         if (!/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(s)) { setState('bad'); return }
         setState('checking')
         try {
@@ -39,7 +43,7 @@ export function LoginDirectory() {
                 <div className="flex items-center gap-0">
                     <input required className={input + ' rounded-r-none'} value={slug}
                         onChange={e => { setSlug(e.target.value); setState('idle') }}
-                        placeholder="your-workspace" />
+                        placeholder="your-workspace or name@workspace" />
                     <span className="rounded-r-lg border border-l-0 border-slate-300 px-3 py-2 text-sm text-slate-500 bg-slate-50">
                         .{BASE_DOMAIN}</span>
                 </div>

@@ -83,6 +83,7 @@ public class DataInitializer {
                                      TenantSchemaProvisioner provisioner,
                                      UserRepository tenantUsers, PasswordEncoder encoder,
                                      org.springframework.transaction.PlatformTransactionManager txManager,
+                                     com.elanjaibuildos.backend.identity.service.UsernameService usernames,
                                      @Value("${app.demo.seed:true}") boolean demoSeed) {
         return args -> {
             if (!demoSeed || tenants.existsBySlug("demo")) return;
@@ -105,10 +106,10 @@ public class DataInitializer {
             TenantContext.setTenant("demo", t.getSchemaName(), "TRIAL");
             try {
                 new TransactionTemplate(txManager).execute(s -> {
-                    seedUser(tenantUsers, encoder, "owner@demo.local", "Demo Owner", "Owner@12345", Role.OWNER);
-                    seedUser(tenantUsers, encoder, "admin@demo.local", "Demo Admin", "Admin@12345", Role.ADMIN);
-                    seedUser(tenantUsers, encoder, "manager@demo.local", "Site Manager", "Manager@12345", Role.SITE_MANAGER);
-                    seedUser(tenantUsers, encoder, "client@demo.local", "Demo Client", "Client@12345", Role.CLIENT);
+                    seedUser(tenantUsers, encoder, usernames, "owner@demo.local", "Demo Owner", "Owner@12345", Role.OWNER);
+                    seedUser(tenantUsers, encoder, usernames, "admin@demo.local", "Demo Admin", "Admin@12345", Role.ADMIN);
+                    seedUser(tenantUsers, encoder, usernames, "manager@demo.local", "Site Manager", "Manager@12345", Role.SITE_MANAGER);
+                    seedUser(tenantUsers, encoder, usernames, "client@demo.local", "Demo Client", "Client@12345", Role.CLIENT);
                     return null;
                 });
             } finally {
@@ -119,6 +120,7 @@ public class DataInitializer {
     }
 
     private void seedUser(UserRepository repo, PasswordEncoder enc,
+                          com.elanjaibuildos.backend.identity.service.UsernameService usernames,
                           String email, String name, String raw, Role role) {
         if (repo.existsByEmail(email)) return;
         User u = new User();
@@ -127,6 +129,7 @@ public class DataInitializer {
         u.setPassword(enc.encode(raw));
         u.setRole(role);
         u.setStatus("active");
+        usernames.assignDerived(u, "demo");   // owner@demo.local → owner@demo
         repo.save(u);
     }
 }

@@ -3,7 +3,6 @@ package com.elanjaibuildos.backend.identity.web;
 import com.elanjaibuildos.backend.identity.api.AuthenticationResponse;
 import com.elanjaibuildos.backend.identity.domain.Role;
 import com.elanjaibuildos.backend.identity.service.AuthService;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
@@ -23,12 +22,15 @@ public class AuthenticationController {
 
     public AuthenticationController(AuthService auth) { this.auth = auth; }
 
-    public record LoginBody(@NotBlank @Email String email, @NotBlank String password) {}
+    /** identifier = email | <local> | <local>@<slug>; `email` kept as legacy field name. */
+    public record LoginBody(String identifier, String email, @NotBlank String password) {
+        public String loginId() { return identifier != null && !identifier.isBlank() ? identifier : email; }
+    }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginBody b) {
         try {
-            return ResponseEntity.ok(auth.login(b.email(), b.password()));
+            return ResponseEntity.ok(auth.login(b.loginId(), b.password()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(401)
                     .body(Map.of("error", "UNAUTHORIZED", "message", e.getMessage()));
@@ -59,11 +61,14 @@ public class AuthenticationController {
         }
     }
 
-    public record ForgotBody(@NotBlank @Email String email) {}
+    /** identifier = email | <local> | <local>@<slug>; resolved server-side, silent on miss. */
+    public record ForgotBody(String identifier, String email) {
+        public String loginId() { return identifier != null && !identifier.isBlank() ? identifier : email; }
+    }
 
     @PostMapping("/forgot-password")
     public Map<String, String> forgot(@RequestBody ForgotBody b) {
-        auth.forgotPassword(b.email());
+        auth.forgotPassword(b.loginId());
         return Map.of("status", "ok");
     }
 

@@ -13,6 +13,8 @@ import lombok.NoArgsConstructor;
 public class RegisterRequest {
     private String fullName;
     private String email;
+    /** Optional explicit username (bare <local> or <local>@<slug>); derived from email when absent. */
+    private String username;
     private String password;
     private String phone;
     private String location;

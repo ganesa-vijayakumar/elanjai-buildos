@@ -22,14 +22,9 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
+import java.util.Locale;
 import java.util.UUID;
-import com.elanjaibuildos.backend.identity.domain.Invite;
-import com.elanjaibuildos.backend.identity.domain.PasswordReset;
-import com.elanjaibuildos.backend.identity.domain.Role;
-import com.elanjaibuildos.backend.identity.domain.User;
 import com.elanjaibuildos.backend.sites.repository.SiteRepository;
-import com.elanjaibuildos.backend.platform.domain.Tenant;
-import com.elanjaibuildos.backend.platform.domain.UsageCounter;
 
 /**
  * Tenant-realm authentication: login, invite acceptance, password reset.
@@ -45,7 +40,8 @@ public class AuthService {
     private final JwtService jwt;
     private final PlatformMailService mail;
     private final PlatformGuard platformGuard;
-    private final com.elanjaibuildos.backend.sites.repository.SiteRepository siteRepository;
+    private final UsernameService usernames;
+    private final SiteRepository siteRepository;
 
     /** Workspace URL template for links in mail ({slug} placeholder). */
     @Value("${app.tenant-url-template:http://{slug}.localhost:5173}")
@@ -58,22 +54,50 @@ public class AuthService {
     public AuthService(UserRepository users, InviteRepository invites,
                        PasswordResetRepository resets, PasswordEncoder encoder,
                        JwtService jwt, PlatformMailService mail, PlatformGuard platformGuard,
-                       com.elanjaibuildos.backend.sites.repository.SiteRepository siteRepository) {
+                       UsernameService usernames, SiteRepository siteRepository) {
         this.users = users; this.invites = invites; this.resets = resets;
         this.encoder = encoder; this.jwt = jwt; this.mail = mail;
-        this.platformGuard = platformGuard; this.siteRepository = siteRepository;
+        this.platformGuard = platformGuard; this.usernames = usernames;
+        this.siteRepository = siteRepository;
     }
 
-    public AuthenticationResponse login(String email, String rawPassword) {
-        User u = users.findByEmail(email.toLowerCase())
-                .filter(x -> encoder.matches(rawPassword, x.getPassword()))
-                .filter(x -> "active".equals(x.getStatus()))
-                .orElseThrow(() -> new IllegalArgumentException("Invalid credentials."));
+    /**
+     * Sign-in by {@code identifier} = email | {@code <local>} | {@code <local>@<slug>}.
+     * Precedence per the identity contract: (1) exact normalized email lookup —
+     * legacy emails like user@acme stay valid; (2) canonical username lookup,
+     * scoped to the resolved tenant. A username shape whose suffix ≠ the host
+     * slug is rejected before any username lookup, with no fallback.
+     */
+    public AuthenticationResponse login(String identifier, String rawPassword) {
+        String id = identifier == null ? "" : identifier.trim().toLowerCase(Locale.ROOT);
+        User u = users.findByEmail(id).orElseGet(() -> resolveUsernameIdentifier(id));
+        if (u == null || !encoder.matches(rawPassword, u.getPassword())
+                || !"active".equals(u.getStatus())) {
+            throw new IllegalArgumentException("Invalid credentials.");
+        }
         u.setLastLoginAt(Instant.now());
         users.save(u);
         return new AuthenticationResponse(
                 jwt.generateTenantToken(u.getEmail(), TenantContext.getSlug(), u.getRole().name()),
                 map(u));
+    }
+
+    /**
+     * Username resolution — only after an exact-email miss, only inside a bound
+     * tenant context. The @-suffix of a canonical username must equal the
+     * resolved slug; anything else returns null (uniform "Invalid credentials").
+     */
+    private User resolveUsernameIdentifier(String id) {
+        String slug = TenantContext.getSlug();
+        if (slug == null || id.isEmpty()) return null;
+        if (UsernameService.isUsernameShape(id)) {
+            if (!UsernameService.suffix(id).equals(slug)) return null;
+            return users.findByUsername(id).orElse(null);
+        }
+        if (!id.contains("@") && UsernameService.isValidLocal(id)) {
+            return users.findByUsername(UsernameService.canonical(id, slug)).orElse(null);
+        }
+        return null;
     }
 
     public UserResponse me(String email) {
@@ -86,6 +110,7 @@ public class AuthService {
     public Invite invite(String email, Role role, UUID siteId, UUID invitedBy) {
         String e = email.toLowerCase();
         if (users.existsByEmail(e)) throw new IllegalArgumentException("User already exists in this workspace.");
+        usernames.assertEmailNotUsername(e);   // disjointness: an email equal to a username is rejected
         Invite inv = new Invite();
         inv.setEmail(e);
         inv.setRole(role);
@@ -120,6 +145,7 @@ public class AuthService {
         u.setPassword(encoder.encode(rawPassword));
         u.setRole(inv.getRole());
         u.setStatus("active");
+        usernames.assignDerived(u, TenantContext.getSlug());   // new users get canonical <local>@<slug>
         users.save(u);
         inv.setAcceptedAt(Instant.now());
         invites.save(inv);
@@ -143,8 +169,11 @@ public class AuthService {
 
     // ---------- password reset ----------
     @Transactional
-    public void forgotPassword(String email) {
-        users.findByEmail(email.toLowerCase()).ifPresent(u -> {
+    public void forgotPassword(String identifier) {
+        String id = identifier == null ? "" : identifier.trim().toLowerCase(Locale.ROOT);
+        User resolved = users.findByEmail(id).orElseGet(() -> resolveUsernameIdentifier(id));
+        if (resolved == null) return;   // always succeeds — don't leak whether the identifier exists
+        users.findByEmail(resolved.getEmail()).ifPresent(u -> {
             PasswordReset pr = new PasswordReset();
             pr.setEmail(u.getEmail());
             pr.setToken(token());
@@ -175,8 +204,8 @@ public class AuthService {
 
     private UserResponse map(User u) {
         return UserResponse.builder()
-                .id(u.getId()).email(u.getEmail()).fullName(u.getFullName())
-                .phone(u.getPhone()).role(u.getRole()).build();
+                .id(u.getId()).email(u.getEmail()).username(u.getUsername())
+                .fullName(u.getFullName()).phone(u.getPhone()).role(u.getRole()).build();
     }
 
     private static String token() {

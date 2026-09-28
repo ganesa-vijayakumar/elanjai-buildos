@@ -21,7 +21,7 @@ interface AuthContextType {
     role: UserRole;
     loading: boolean;
     error: Error | null;
-    signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+    signIn: (identifier: string, password: string) => Promise<{ error: Error | null }>;
     logout: () => void;
 }
 
@@ -48,11 +48,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
     }, []);
 
-    const signIn = async (email: string, password: string) => {
+    const signIn = async (identifier: string, password: string) => {
         setLoading(true);
         setError(null);
         try {
-            const response = await api.post('/auth/authenticate', { email, password });
+            const response = await api.post('/auth/authenticate', { identifier, password });
             const { token, user } = response.data;
 
             localStorage.setItem(TENANT_TOKEN_KEY, token);

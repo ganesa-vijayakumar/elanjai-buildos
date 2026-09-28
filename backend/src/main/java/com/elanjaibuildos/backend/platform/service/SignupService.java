@@ -49,6 +49,7 @@ public class SignupService {
     private final AuditService audit;
     private final PasswordEncoder encoder;
     private final TransactionTemplate txTemplate;
+    private final com.elanjaibuildos.backend.identity.service.UsernameService usernames;
 
     @Value("${app.tenancy.trial-days:14}")
     private int trialDays;
@@ -69,11 +70,12 @@ public class SignupService {
                          PlatformSettingRepository settings,
                          TenantSchemaProvisioner provisioner, PlatformMailService mail,
                          AuditService audit, PasswordEncoder encoder,
+                         com.elanjaibuildos.backend.identity.service.UsernameService usernames,
                          org.springframework.transaction.PlatformTransactionManager txManager) {
         this.signups = signups; this.tenants = tenants; this.plans = plans;
         this.tenantUsers = tenantUsers; this.settings = settings;
         this.provisioner = provisioner; this.mail = mail; this.audit = audit;
-        this.encoder = encoder;
+        this.encoder = encoder; this.usernames = usernames;
         this.txTemplate = new TransactionTemplate(txManager);
     }
 
@@ -270,6 +272,7 @@ public class SignupService {
                     owner.setPhone(req.getPhone());
                     owner.setRole(Role.OWNER);
                     owner.setStatus("active");
+                    usernames.assignDerived(owner, tenant.getSlug());   // canonical <local>@<slug>
                     tenantUsers.save(owner);
                 }
                 return null;

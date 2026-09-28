@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { toast } from 'sonner'
-import { UsersThree, UserPlus, Phone, MapPin, EnvelopeSimple, Key, CopySimple } from '@phosphor-icons/react'
+import { UsersThree, UserPlus, Phone, MapPin, EnvelopeSimple, Key, CopySimple, At } from '@phosphor-icons/react'
 import { Badge } from '../ui/badge'
 
 export function UserManagementMVP() {
@@ -19,9 +19,10 @@ export function UserManagementMVP() {
     const [inviting, setInviting] = useState(false)
     const [invites, setInvites] = useState<any[]>([])
 
-    // Reset password state
+    // Manage sign-in state (password reset + username set)
     const [resetUser, setResetUser] = useState<any | null>(null)
     const [resetPassword, setResetPassword] = useState('')
+    const [resetUsername, setResetUsername] = useState('')
     const [resetting, setResetting] = useState(false)
 
     const [inviteForm, setInviteForm] = useState({
@@ -76,27 +77,29 @@ export function UserManagementMVP() {
     }
 
     const handleResetPassword = async () => {
-        if (!resetUser || !resetPassword) {
-            toast.error('Please enter a new password')
+        if (!resetUser || (!resetPassword && resetUsername === (resetUser.username || ''))) {
+            toast.error('Enter a new password or change the username')
             return
         }
-        
+
         setResetting(true)
         const { error } = await updateUser(resetUser.id, {
             full_name: resetUser.full_name,
             phone: resetUser.phone,
             location: resetUser.location,
             role: resetUser.role,
-            password: resetPassword
+            ...(resetPassword ? { password: resetPassword } : {}),
+            ...(resetUsername !== (resetUser.username || '') ? { username: resetUsername } : {})
         })
         setResetting(false)
 
         if (error) {
-            toast.error('Failed to reset password: ' + error)
+            toast.error('Failed to update sign-in: ' + error)
         } else {
-            toast.success('Password reset successfully')
+            toast.success('Sign-in updated')
             setResetUser(null)
             setResetPassword('')
+            setResetUsername('')
         }
     }
 
@@ -138,7 +141,8 @@ export function UserManagementMVP() {
                                                     {user.role === 'CLIENT' ? 'Client' : 'Site Manager'}
                                                 </Badge>
                                             </div>
-                                            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0 border-gray-200 hover:bg-gray-100" onClick={() => setResetUser(user)} title="Reset Password">
+                                            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0 border-gray-200 hover:bg-gray-100"
+                                                onClick={() => { setResetUser(user); setResetUsername(user.username || '') }} title="Manage sign-in">
                                                 <Key className="w-4 h-4 text-gray-500" />
                                             </Button>
                                         </div>
@@ -153,6 +157,12 @@ export function UserManagementMVP() {
                                                 <div className="flex items-center gap-2">
                                                     <EnvelopeSimple className="w-4 h-4 text-gray-400" />
                                                     <span className="truncate" title={user.email}>{user.email}</span>
+                                                </div>
+                                            )}
+                                            {user.username && (
+                                                <div className="flex items-center gap-2">
+                                                    <At className="w-4 h-4 text-gray-400" />
+                                                    <span className="truncate" title={user.username}>{user.username}</span>
                                                 </div>
                                             )}
                                             {user.location && (
@@ -253,23 +263,35 @@ export function UserManagementMVP() {
                     </DialogContent>
                 </Dialog>
 
-                {/* Reset Password Dialog */}
+                {/* Manage Sign-in Dialog — password reset + username set */}
                 <Dialog open={!!resetUser} onOpenChange={(open) => {
                     if (!open) setResetUser(null)
                 }}>
                     <DialogContent className="max-w-sm">
                         <DialogHeader>
-                            <DialogTitle>Reset Password</DialogTitle>
+                            <DialogTitle>Manage Sign-in</DialogTitle>
                         </DialogHeader>
                         <div className="py-4 space-y-4">
                             <p className="text-sm text-gray-500">
-                                Enter a new password for <span className="font-semibold text-gray-900">{resetUser?.full_name}</span>.
+                                Update sign-in details for <span className="font-semibold text-gray-900">{resetUser?.full_name}</span>.
                             </p>
                             <div>
-                                <Label>New Password</Label>
+                                <Label>Username</Label>
                                 <Input
                                     type="text"
-                                    placeholder="Enter new password"
+                                    placeholder="name"
+                                    value={resetUsername}
+                                    onChange={(e) => setResetUsername(e.target.value)}
+                                />
+                                <p className="text-xs text-gray-400 mt-1">
+                                    Sign-in name: {resetUsername || 'name'}@&lt;this workspace&gt;
+                                </p>
+                            </div>
+                            <div>
+                                <Label>New Password (optional)</Label>
+                                <Input
+                                    type="text"
+                                    placeholder="Leave blank to keep current"
                                     value={resetPassword}
                                     onChange={(e) => setResetPassword(e.target.value)}
                                 />
@@ -277,8 +299,9 @@ export function UserManagementMVP() {
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setResetUser(null)}>Cancel</Button>
-                            <Button onClick={handleResetPassword} disabled={resetting || !resetPassword} className="bg-red-600 hover:bg-red-700">
-                                {resetting ? 'Resetting...' : 'Reset Password'}
+                            <Button onClick={handleResetPassword} disabled={resetting}
+                                className="bg-red-600 hover:bg-red-700">
+                                {resetting ? 'Saving...' : 'Save'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

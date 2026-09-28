@@ -15,5 +15,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     boolean existsByEmail(String email);
 
+    Optional<User> findByUsername(String username);
+
+    boolean existsByUsername(String username);
+
+    /** Rows pending username backfill, in deterministic order. */
+    List<User> findByUsernameIsNullOrderByCreatedAtAscIdAsc();
+
     List<User> findByRole(Role role);
 }
