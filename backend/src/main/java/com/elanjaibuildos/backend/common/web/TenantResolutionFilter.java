@@ -17,6 +17,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Locale;
+import com.elanjaibuildos.backend.platform.domain.Tenant;
 
 /**
  * Resolves tenant from subdomain (Host) or dev X-Tenant-ID header.

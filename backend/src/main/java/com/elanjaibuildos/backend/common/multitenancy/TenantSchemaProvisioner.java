@@ -10,6 +10,7 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import com.elanjaibuildos.backend.platform.domain.Tenant;
 
 /**
  * Provisions a new tenant schema: CREATE SCHEMA t_<slug> + tenant Flyway

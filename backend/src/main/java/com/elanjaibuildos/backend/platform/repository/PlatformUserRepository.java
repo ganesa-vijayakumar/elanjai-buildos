@@ -1,6 +1,6 @@
 package com.elanjaibuildos.backend.platform.repository;
 
-import com.elanjaibuildos.backend.platform.model.PlatformUser;
+import com.elanjaibuildos.backend.platform.domain.PlatformUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

@@ -1,8 +1,8 @@
 package com.elanjaibuildos.backend.platform.service;
 
-import com.elanjaibuildos.backend.platform.model.Invoice;
-import com.elanjaibuildos.backend.platform.model.Plan;
-import com.elanjaibuildos.backend.platform.model.Tenant;
+import com.elanjaibuildos.backend.platform.domain.Invoice;
+import com.elanjaibuildos.backend.platform.domain.Plan;
+import com.elanjaibuildos.backend.platform.domain.Tenant;
 import com.elanjaibuildos.backend.platform.repository.InvoiceRepository;
 import com.elanjaibuildos.backend.platform.repository.PlatformSettingRepository;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import com.elanjaibuildos.backend.platform.domain.PlatformSetting;
 
 /**
  * GST invoice issuance (F-014): sequential INV-YYYY-NNNNN per FY,
@@ -89,7 +90,7 @@ public class InvoiceService {
                 ? LocalDate.now(IST).getYear() : LocalDate.now(IST).getYear() - 1;
         String key = "invoice.sequence." + fy;
         var row = settings.findById(key).orElseGet(() -> {
-            var s = new com.elanjaibuildos.backend.platform.model.PlatformSetting();
+            var s = new com.elanjaibuildos.backend.platform.domain.PlatformSetting();
             s.setKey(key); s.setValue("0");
             return s;
         });

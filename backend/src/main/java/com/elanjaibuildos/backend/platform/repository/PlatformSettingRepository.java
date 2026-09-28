@@ -1,6 +1,6 @@
 package com.elanjaibuildos.backend.platform.repository;
 
-import com.elanjaibuildos.backend.platform.model.PlatformSetting;
+import com.elanjaibuildos.backend.platform.domain.PlatformSetting;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

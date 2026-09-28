@@ -1,6 +1,6 @@
 package com.elanjaibuildos.backend.platform.service;
 
-import com.elanjaibuildos.backend.platform.model.Tenant;
+import com.elanjaibuildos.backend.platform.domain.Tenant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;

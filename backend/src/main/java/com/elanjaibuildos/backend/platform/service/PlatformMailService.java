@@ -1,6 +1,6 @@
 package com.elanjaibuildos.backend.platform.service;
 
-import com.elanjaibuildos.backend.platform.model.TenantNotification;
+import com.elanjaibuildos.backend.platform.domain.TenantNotification;
 import com.elanjaibuildos.backend.platform.repository.TenantNotificationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
+import com.elanjaibuildos.backend.notifications.domain.Notification;
 
 /**
  * Queues outbound notifications (tenant_notifications) and delivers pending

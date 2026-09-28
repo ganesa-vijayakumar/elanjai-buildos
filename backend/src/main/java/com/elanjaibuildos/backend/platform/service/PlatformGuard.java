@@ -1,10 +1,11 @@
 package com.elanjaibuildos.backend.platform.service;
 
 import com.elanjaibuildos.backend.common.multitenancy.TenantContext;
-import com.elanjaibuildos.backend.platform.model.Tenant;
-import com.elanjaibuildos.backend.platform.model.UsageCounter;
+import com.elanjaibuildos.backend.platform.domain.Tenant;
+import com.elanjaibuildos.backend.platform.domain.UsageCounter;
 import com.elanjaibuildos.backend.platform.repository.TenantRepository;
 import org.springframework.stereotype.Component;
+import com.elanjaibuildos.backend.platform.domain.Plan;
 
 /**
  * Plan-limit + feature-gate enforcement callable from tenant-schema operations.

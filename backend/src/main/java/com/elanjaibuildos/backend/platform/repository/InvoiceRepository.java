@@ -1,6 +1,6 @@
 package com.elanjaibuildos.backend.platform.repository;
 
-import com.elanjaibuildos.backend.platform.model.Invoice;
+import com.elanjaibuildos.backend.platform.domain.Invoice;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

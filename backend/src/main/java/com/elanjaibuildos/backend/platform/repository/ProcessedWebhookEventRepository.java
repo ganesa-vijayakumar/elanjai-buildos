@@ -1,6 +1,6 @@
 package com.elanjaibuildos.backend.platform.repository;
 
-import com.elanjaibuildos.backend.platform.model.ProcessedWebhookEvent;
+import com.elanjaibuildos.backend.platform.domain.ProcessedWebhookEvent;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.UUID;

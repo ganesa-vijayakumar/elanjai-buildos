@@ -1,9 +1,9 @@
 package com.elanjaibuildos.backend.security;
 
 import com.elanjaibuildos.backend.common.multitenancy.TenantContext;
-import com.elanjaibuildos.backend.platform.model.PlatformUser;
+import com.elanjaibuildos.backend.platform.domain.PlatformUser;
 import com.elanjaibuildos.backend.platform.repository.PlatformUserRepository;
-import com.elanjaibuildos.backend.repository.UserRepository;
+import com.elanjaibuildos.backend.identity.repository.UserRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

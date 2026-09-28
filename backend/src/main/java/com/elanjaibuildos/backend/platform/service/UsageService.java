@@ -1,8 +1,8 @@
 package com.elanjaibuildos.backend.platform.service;
 
-import com.elanjaibuildos.backend.platform.model.Plan;
-import com.elanjaibuildos.backend.platform.model.Tenant;
-import com.elanjaibuildos.backend.platform.model.UsageCounter;
+import com.elanjaibuildos.backend.platform.domain.Plan;
+import com.elanjaibuildos.backend.platform.domain.Tenant;
+import com.elanjaibuildos.backend.platform.domain.UsageCounter;
 import com.elanjaibuildos.backend.platform.repository.UsageCounterRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;

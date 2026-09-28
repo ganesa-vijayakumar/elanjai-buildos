@@ -10,6 +10,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Set;
+import com.elanjaibuildos.backend.platform.domain.Subscription;
+import com.elanjaibuildos.backend.platform.domain.Tenant;
 
 /**
  * Tenant lifecycle enforcement (D-013/D-037):

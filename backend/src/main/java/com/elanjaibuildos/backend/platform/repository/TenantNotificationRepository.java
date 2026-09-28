@@ -1,6 +1,6 @@
 package com.elanjaibuildos.backend.platform.repository;
 
-import com.elanjaibuildos.backend.platform.model.TenantNotification;
+import com.elanjaibuildos.backend.platform.domain.TenantNotification;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

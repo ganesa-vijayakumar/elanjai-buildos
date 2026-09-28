@@ -1,6 +1,6 @@
 package com.elanjaibuildos.backend.platform.service;
 
-import com.elanjaibuildos.backend.platform.model.PlatformAuditLog;
+import com.elanjaibuildos.backend.platform.domain.PlatformAuditLog;
 import com.elanjaibuildos.backend.platform.repository.PlatformAuditLogRepository;
 import org.springframework.stereotype.Service;
 

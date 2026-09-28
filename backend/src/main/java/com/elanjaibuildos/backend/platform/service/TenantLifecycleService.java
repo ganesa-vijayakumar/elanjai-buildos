@@ -1,9 +1,9 @@
 package com.elanjaibuildos.backend.platform.service;
 
 import com.elanjaibuildos.backend.common.multitenancy.TenantSchemaProvisioner;
-import com.elanjaibuildos.backend.platform.model.Invoice;
-import com.elanjaibuildos.backend.platform.model.Subscription;
-import com.elanjaibuildos.backend.platform.model.Tenant;
+import com.elanjaibuildos.backend.platform.domain.Invoice;
+import com.elanjaibuildos.backend.platform.domain.Subscription;
+import com.elanjaibuildos.backend.platform.domain.Tenant;
 import com.elanjaibuildos.backend.platform.repository.InvoiceRepository;
 import com.elanjaibuildos.backend.platform.repository.SubscriptionRepository;
 import com.elanjaibuildos.backend.platform.repository.TenantRepository;

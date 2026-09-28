@@ -2,15 +2,15 @@ package com.elanjaibuildos.backend.config;
 
 import com.elanjaibuildos.backend.common.multitenancy.TenantContext;
 import com.elanjaibuildos.backend.common.multitenancy.TenantSchemaProvisioner;
-import com.elanjaibuildos.backend.model.Role;
-import com.elanjaibuildos.backend.model.User;
-import com.elanjaibuildos.backend.platform.model.Plan;
-import com.elanjaibuildos.backend.platform.model.PlatformUser;
-import com.elanjaibuildos.backend.platform.model.Tenant;
+import com.elanjaibuildos.backend.identity.domain.Role;
+import com.elanjaibuildos.backend.identity.domain.User;
+import com.elanjaibuildos.backend.platform.domain.Plan;
+import com.elanjaibuildos.backend.platform.domain.PlatformUser;
+import com.elanjaibuildos.backend.platform.domain.Tenant;
 import com.elanjaibuildos.backend.platform.repository.PlanRepository;
 import com.elanjaibuildos.backend.platform.repository.PlatformUserRepository;
 import com.elanjaibuildos.backend.platform.repository.TenantRepository;
-import com.elanjaibuildos.backend.repository.UserRepository;
+import com.elanjaibuildos.backend.identity.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import com.elanjaibuildos.backend.sites.domain.Site;
 
 /**
  * Demo tenant seed (dev only, gated by app.demo.seed): creates a `demo` tenant
