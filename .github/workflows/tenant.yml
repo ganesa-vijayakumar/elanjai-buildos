@@ -32,4 +32,4 @@ jobs:
             - name: Typecheck + bundle
               run: npm run build -w @buildos/tenant
             - name: Docker image (build-only)
-              run: docker build -f apps/tenant/Dockerfile -t buildos-tenant:ci .
+              run: docker build -f apps/tenant/Dockerfile --build-arg APP_VERSION=${{ github.sha }} -t buildos-tenant:${{ github.sha }} -t buildos-tenant:ci .

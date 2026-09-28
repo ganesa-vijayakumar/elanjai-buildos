@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# Workspace (tenant) and admin hosts serve X-Robots-Tag: noindex — only the
+# landing surface is indexable. sitemap.xml is a P1 item (see
+# Prody enhancements/04-quality/01).

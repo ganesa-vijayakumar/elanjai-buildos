@@ -10,11 +10,13 @@ COPY apps/admin/package.json apps/admin/
 RUN npm ci --no-audit --no-fund
 COPY packages/shared packages/shared
 COPY apps/admin apps/admin
+ARG APP_VERSION=dev
 ARG VITE_API_BASE_URL=/api
 ARG VITE_BASE_DOMAIN=localhost
 ARG VITE_ADMIN_HOST=admin.localhost
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL VITE_BASE_DOMAIN=$VITE_BASE_DOMAIN VITE_ADMIN_HOST=$VITE_ADMIN_HOST
 RUN npm run build -w @buildos/admin
+RUN printf '%s' "$APP_VERSION" > /repo/apps/admin/dist/version.txt
 
 FROM nginx:alpine
 COPY --from=build /repo/apps/admin/dist /usr/share/nginx/html

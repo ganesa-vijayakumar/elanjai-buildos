@@ -32,4 +32,4 @@ jobs:
             - name: Typecheck + bundle
               run: npm run build -w @buildos/admin
             - name: Docker image (build-only)
-              run: docker build -f apps/admin/Dockerfile -t buildos-admin:ci .
+              run: docker build -f apps/admin/Dockerfile --build-arg APP_VERSION=${{ github.sha }} -t buildos-admin:${{ github.sha }} -t buildos-admin:ci .

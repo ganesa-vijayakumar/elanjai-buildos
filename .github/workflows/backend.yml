@@ -37,4 +37,4 @@ jobs:
                   TEST_DB_URL: jdbc:postgresql://localhost:5432/elanjai_test
               run: mvn -B verify
             - name: Docker image (build-only)
-              run: docker build -t buildos-backend:ci backend/
+              run: docker build -t buildos-backend:${{ github.sha }} -t buildos-backend:ci backend/

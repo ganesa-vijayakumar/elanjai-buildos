@@ -34,4 +34,4 @@ jobs:
             - name: Typecheck + bundle
               run: npm run build -w @buildos/landing
             - name: Docker image (build-only)
-              run: docker build -f apps/landing/Dockerfile -t buildos-landing:ci .
+              run: docker build -f apps/landing/Dockerfile --build-arg APP_VERSION=${{ github.sha }} -t buildos-landing:${{ github.sha }} -t buildos-landing:ci .

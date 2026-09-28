@@ -31,6 +31,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: ${BUILDOS_BACKEND_IMAGE:-buildos-backend:dev}
     container_name: elanjai-backend
     depends_on:
       postgres:
@@ -65,13 +66,17 @@ services:
 
   # ----- independently deployable frontend apps -----
   # Each builds only its own sources; a landing-only change rebuilds `landing`
-  # and nothing else.
+  # and nothing else. Image refs are env-overridable: in a registry-backed
+  # deployment set BUILDOS_*_IMAGE to a pushed tag/digest (promote + rollback by
+  # repointing, per Prody enhancements/03-deployment/02); dev uses local *:dev.
 
   landing:
+    image: ${BUILDOS_LANDING_IMAGE:-buildos-landing:dev}
     build:
       context: .
       dockerfile: apps/landing/Dockerfile
       args:
+        APP_VERSION: ${APP_VERSION:-dev}
         VITE_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-localhost}
         VITE_ADMIN_HOST: ${TENANT_ADMIN_HOST:-admin.localhost}
     container_name: elanjai-landing
@@ -81,10 +86,12 @@ services:
       - backend
 
   tenant:
+    image: ${BUILDOS_TENANT_IMAGE:-buildos-tenant:dev}
     build:
       context: .
       dockerfile: apps/tenant/Dockerfile
       args:
+        APP_VERSION: ${APP_VERSION:-dev}
         VITE_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-localhost}
         VITE_ADMIN_HOST: ${TENANT_ADMIN_HOST:-admin.localhost}
     container_name: elanjai-tenant
@@ -94,10 +101,12 @@ services:
       - backend
 
   admin:
+    image: ${BUILDOS_ADMIN_IMAGE:-buildos-admin:dev}
     build:
       context: .
       dockerfile: apps/admin/Dockerfile
       args:
+        APP_VERSION: ${APP_VERSION:-dev}
         VITE_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-localhost}
         VITE_ADMIN_HOST: ${TENANT_ADMIN_HOST:-admin.localhost}
     container_name: elanjai-admin
