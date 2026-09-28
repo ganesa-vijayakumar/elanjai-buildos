@@ -11,20 +11,44 @@
 # Env:
 #   DATABASE_URL   (default postgresql://postgres:postgres@localhost:5433/elanjai)
 #   BACKUP_DIR     (default ./backups)
+#   PG_CONTAINER   set to a running postgres container name to run pg_dump/psql
+#                  via docker exec (for dev machines without local pg clients);
+#                  dumps stream over stdout so files land on the host.
+#   PG_USER, PG_DB  credentials used with PG_CONTAINER (default postgres/elanjai)
 #   PGPASSWORD may be used instead of embedding credentials in DATABASE_URL.
 set -euo pipefail
 
 DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5433/elanjai}"
 OUT="${BACKUP_DIR:-./backups}/$(date -u +%Y%m%dT%H%M%SZ)"
+PG_CONTAINER="${PG_CONTAINER:-}"
+PG_USER="${PG_USER:-postgres}"
+PG_DB="${PG_DB:-elanjai}"
 mkdir -p "$OUT"
 
+pg_query() { # single-column query -> stdout
+    if [ -n "$PG_CONTAINER" ]; then
+        docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" -tAc "$1"
+    else
+        psql "$DATABASE_URL" -tAc "$1"
+    fi
+}
+
+dump_schema() { # $1 schema, $2 outfile
+    if [ -n "$PG_CONTAINER" ]; then
+        docker exec "$PG_CONTAINER" pg_dump -U "$PG_USER" -d "$PG_DB" \
+            --schema="$1" --format=custom > "$2"
+    else
+        pg_dump "$DATABASE_URL" --schema="$1" --format=custom --file="$2"
+    fi
+}
+
 echo "Backing up public schema -> $OUT/public.dump"
-pg_dump "$DATABASE_URL" --schema=public --format=custom --file="$OUT/public.dump"
+dump_schema public "$OUT/public.dump"
 
 if [ "$#" -gt 0 ]; then
     schemas=("$@")
 else
-    mapfile -t schemas < <(psql "$DATABASE_URL" -tAc \
+    mapfile -t schemas < <(pg_query \
         "SELECT schema_name FROM tenants WHERE schema_name IS NOT NULL AND status <> 'OFFBOARDED'")
 fi
 
@@ -36,7 +60,7 @@ for s in "${schemas[@]}"; do
         *) echo "Skipping unsafe schema name: $schema" >&2; continue ;;
     esac
     echo "Backing up $schema -> $OUT/$schema.dump"
-    pg_dump "$DATABASE_URL" --schema="$schema" --format=custom --file="$OUT/$schema.dump"
+    dump_schema "$schema" "$OUT/$schema.dump"
 done
 
 echo "Backup complete: $OUT"

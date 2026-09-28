@@ -10,11 +10,27 @@
 #
 # Env:
 #   DATABASE_URL   (default postgresql://postgres:postgres@localhost:5433/elanjai)
+#   PG_CONTAINER   set to a running postgres container name to run pg_restore
+#                  via docker exec (dumps stream over stdin from the host).
+#   PG_USER, PG_DB  credentials used with PG_CONTAINER (default postgres/elanjai)
 set -euo pipefail
 
 DIR="${1:?usage: restore-db.sh <backup-dir> [schema ...]}"
 shift || true
 DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5433/elanjai}"
+PG_CONTAINER="${PG_CONTAINER:-}"
+PG_USER="${PG_USER:-postgres}"
+PG_DB="${PG_DB:-elanjai}"
+
+restore_schema() { # $1 schema, $2 dump file
+    if [ -n "$PG_CONTAINER" ]; then
+        docker exec -i "$PG_CONTAINER" pg_restore -U "$PG_USER" -d "$PG_DB" \
+            --schema="$1" --clean --if-exists --no-owner --no-privileges < "$2"
+    else
+        pg_restore --dbname="$DATABASE_URL" --schema="$1" \
+            --clean --if-exists --no-owner --no-privileges "$2"
+    fi
+}
 
 if [ "$#" -gt 0 ]; then
     files=()
@@ -32,8 +48,7 @@ fi
 for f in "${files[@]}"; do
     schema=$(basename "$f" .dump)
     echo "Restoring $schema from $f"
-    pg_restore --dbname="$DATABASE_URL" --schema="$schema" \
-        --clean --if-exists --no-owner --no-privileges "$f"
+    restore_schema "$schema" "$f"
 done
 
 echo "Restore complete from $DIR — verify before resuming traffic."
