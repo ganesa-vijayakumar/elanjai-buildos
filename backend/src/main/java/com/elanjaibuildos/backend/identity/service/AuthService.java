@@ -69,6 +69,11 @@ public class AuthService {
      * slug is rejected before any username lookup, with no fallback.
      */
     public AuthenticationResponse login(String identifier, String rawPassword) {
+        if (!TenantContext.hasTenant()) {
+            // sign-in only exists on a workspace host — fail closed before touching
+            // the (nonexistent) users table in the public schema
+            throw new IllegalArgumentException("Sign in on your workspace domain.");
+        }
         String id = identifier == null ? "" : identifier.trim().toLowerCase(Locale.ROOT);
         User u = users.findByEmail(id).orElseGet(() -> resolveUsernameIdentifier(id));
         if (u == null || !encoder.matches(rawPassword, u.getPassword())

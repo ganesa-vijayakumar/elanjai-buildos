@@ -55,7 +55,7 @@ check "api via tenant"    "$SLUG.$BASE_DOMAIN"    "/api/public/tenants/$SLUG/sta
 check "unknown workspace" "$APEX_HOST"            "/api/public/tenants/nope-xyz/status" '"exists":false'
 
 # --- auth boundary: tenant login works, admin login lives only on admin host ---
-check_code "tenant auth surface" "$SLUG.$BASE_DOMAIN" "/api/auth/me" "401"
+check_code "tenant auth surface" "$SLUG.$BASE_DOMAIN" "/api/auth/me" "403"
 check_code "admin auth surface"  "$ADMIN_HOST"        "/api/admin/dashboard" "403"
 
 # --- landing seo + version surfaces ---
