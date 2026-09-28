@@ -1,19 +1,12 @@
 name: docs
 
-# Documentation-only pipeline — runs markdown hygiene checks for doc changes
-# and nothing else. Application pipelines do not trigger on doc paths.
+# Documentation-only pipeline — runs markdown hygiene checks and nothing
+# else. Manual-only: dispatch on demand; nothing runs automatically.
 on:
-    push:
-        branches: [main, develop]
-        paths:
-            - '**.md'
-            - 'Prody enhancements/**'
-            - '.github/workflows/docs.yml'
-    pull_request:
-        paths:
-            - '**.md'
-            - 'Prody enhancements/**'
-            - '.github/workflows/docs.yml'
+    workflow_dispatch:
+
+permissions:
+    contents: read
 
 jobs:
     markdown:

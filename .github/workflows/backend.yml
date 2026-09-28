@@ -1,11 +1,11 @@
 name: backend
 
+# Manual-only build check — dispatch on demand; nothing runs automatically.
 on:
-    push:
-        branches: [main, develop]
-        paths: ['backend/**', '.github/workflows/backend.yml']
-    pull_request:
-        paths: ['backend/**', '.github/workflows/backend.yml']
+    workflow_dispatch:
+
+permissions:
+    contents: read
 
 jobs:
     verify:

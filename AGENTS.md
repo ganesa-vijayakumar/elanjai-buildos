@@ -1,5 +1,12 @@
 # Build / test / run
 
+## CI
+- All workflows in `.github/workflows/` are **manual-only** (`workflow_dispatch`) — never add push/PR/schedule triggers.
+- Release management: `release.yml` (checks → GHCR images `buildos-{landing,tenant,admin,backend}:<semver>` → `manifest.json` + `checksums.txt` on GitHub release `v<version>`), `promote.yml`/`rollback.yml` (verify manifest → render pinned `images.env` + `deploy-plan.md` via `scripts/deploy-manifest.sh`; manifest-only — apply on the target host), `cleanup-retention.yml` (GHCR/cache/run retention, `cleanup` env gate). All four refuse dispatch from non-`main` refs.
+- Manual build checks: `backend.yml`, `landing.yml`, `tenant.yml`, `admin.yml`, `docs.yml`.
+- Helper scripts: `scripts/check-postgres-only.sh` (MySQL gate), `scripts/cleanup-github-resources.sh`, `scripts/deploy-manifest.sh`; k6 smoke at `tests/performance/k6/edge-smoke.js`.
+- Required config: `.github/REQUIRED_SECRETS.md` (environments `preprod`/`prod`/`cleanup`, `ALLOWED_TEST_HOSTS`, optional `NVD_API_KEY`/`CLEANUP_GH_TOKEN`).
+
 ## Layout
 - `backend/` — Spring Boot 4 (Java 25), schema-per-tenant PostgreSQL.
 - `apps/landing`, `apps/tenant`, `apps/admin` — independent Vite/React 19 SPAs.

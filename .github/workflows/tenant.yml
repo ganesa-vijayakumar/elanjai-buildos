@@ -1,23 +1,11 @@
 name: frontend-tenant
 
+# Manual-only build check — dispatch on demand; nothing runs automatically.
 on:
-    push:
-        branches: [main, develop]
-        paths:
-            - 'apps/tenant/**'
-            - 'packages/shared/**'
-            - 'package.json'
-            - 'package-lock.json'
-            - 'tsconfig.base.json'
-            - '.github/workflows/tenant.yml'
-    pull_request:
-        paths:
-            - 'apps/tenant/**'
-            - 'packages/shared/**'
-            - 'package.json'
-            - 'package-lock.json'
-            - 'tsconfig.base.json'
-            - '.github/workflows/tenant.yml'
+    workflow_dispatch:
+
+permissions:
+    contents: read
 
 jobs:
     build:

@@ -1,0 +1,20 @@
+# actionlint configuration
+# See: https://github.com/rhysd/actionlint/blob/main/docs/config.md
+#
+# The workflow files in this repository reference several repository-level
+# secrets and variables. actionlint (and the GitHub Actions language server)
+# cannot statically verify that these exist in the repository, so it reports
+# "Context access might be invalid" warnings. The references below are the
+# intentionally allowed values used by the release pipeline.
+
+# Configuration variables (vars.*) defined at repository or organization level.
+# Add any non-sensitive repository/organization variables here as they are added.
+config-variables:
+  - ALLOWED_TEST_HOSTS
+
+# Per-file ignore patterns. The regex matches the diagnostic message text.
+paths:
+  .github/workflows/**/*.{yml,yaml}:
+    ignore:
+      # Repository/environment secrets that cannot be validated locally
+      - 'Context access might be invalid: (NVD_API_KEY|CLEANUP_GH_TOKEN)\b'

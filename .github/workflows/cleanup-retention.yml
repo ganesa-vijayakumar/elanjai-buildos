@@ -1,0 +1,148 @@
+name: cleanup-retention
+
+# Conservative retention cleanup — manual-only, dry-run first.
+# The plan job always enumerates and uploads a cleanup plan artifact; nothing
+# is deleted in dry-run mode. Apply mode requires confirm_cleanup == "cleanup"
+# and runs inside the protected `cleanup` environment, executing exactly the
+# deletions recorded in the uploaded plan (scripts/cleanup-github-resources.sh).
+#
+# Never deleted: published GitHub releases/tags, release manifest assets, any
+# GHCR digest referenced by a release manifest, operator-supplied digest pins,
+# successful workflow runs, and release.yml runs (they carry release evidence).
+on:
+  workflow_dispatch:
+    inputs:
+      retention_count:
+        description: 'Tagged image versions to keep per package'
+        required: true
+        type: number
+        default: 5
+      runs_retention_count:
+        description: 'Latest non-success runs to keep per workflow'
+        required: true
+        type: number
+        default: 10
+      dry_run:
+        description: 'Enumerate only — never delete'
+        required: true
+        type: boolean
+        default: true
+      protected_digests:
+        description: 'Optional comma/newline-separated sha256: digests to keep (e.g. deliberate pins)'
+        required: false
+        type: string
+        default: ''
+      confirm_cleanup:
+        description: '"preview" for dry runs; "cleanup" is required for apply'
+        required: true
+        type: string
+        default: 'preview'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cleanup-retention
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read    # release manifest assets
+      packages: read    # GHCR version enumeration
+      actions: read     # caches + workflow run enumeration
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate confirmation gate
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          CONFIRM: ${{ github.event.inputs.confirm_cleanup }}
+          WORKFLOW_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          [ "$WORKFLOW_REF" = "main" ] \
+            || { echo "::error::cleanup-retention must be dispatched from main (got '$WORKFLOW_REF')"; exit 1; }
+          if [ "$DRY_RUN" = "true" ]; then
+            [ "$CONFIRM" = "preview" ] \
+              || { echo "::error::dry run requires confirm_cleanup=preview"; exit 1; }
+          else
+            [ "$CONFIRM" = "cleanup" ] \
+              || { echo "::error::apply mode requires confirm_cleanup=cleanup"; exit 1; }
+            echo "apply mode — the protected 'cleanup' environment gates execution"
+          fi
+
+      - name: Enumerate cleanup plan
+        env:
+          RETENTION: ${{ github.event.inputs.retention_count }}
+          RUNS_RETENTION: ${{ github.event.inputs.runs_retention_count }}
+          EXTRA_PROTECTED: ${{ github.event.inputs.protected_digests }}
+        run: |
+          set -euo pipefail
+          bash scripts/cleanup-github-resources.sh --plan \
+            --repo "$REPO" \
+            --retention "$RETENTION" \
+            --runs-retention "$RUNS_RETENTION" \
+            --out cleanup-plan.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cleanup-plan
+          path: cleanup-plan.json
+          retention-days: 30
+
+      - name: Plan summary
+        run: |
+          set -euo pipefail
+          {
+            echo '## Cleanup plan'
+            echo
+            jq -r '
+              "| category | count |",
+              "|---|---|",
+              "| GHCR package versions | \(.delete.package_versions | length) |",
+              "| Actions caches (>7d) | \(.delete.caches | length) |",
+              "| Non-success workflow runs | \(.delete.workflow_runs | length) |",
+              "",
+              "Protected digests (release manifests + operator pins): \(.protected_digests | length)",
+              "Releases whose manifest could not be fetched: \(.protected_fetch_failed | length)"
+            ' cleanup-plan.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    needs: plan
+    if: ${{ github.event.inputs.dry_run == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: cleanup # protected approval before any deletion
+    permissions:
+      contents: read
+      packages: write  # package version deletion (see note on CLEANUP_GH_TOKEN)
+      actions: write   # cache + run deletion
+    env:
+      # GITHUB_TOKEN cannot delete GHCR package versions on all account types;
+      # a PAT with delete:packages may be configured as CLEANUP_GH_TOKEN.
+      GH_TOKEN: ${{ secrets.CLEANUP_GH_TOKEN || secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cleanup-plan
+
+      - name: Apply the exact uploaded plan
+        run: |
+          set -euo pipefail
+          bash scripts/cleanup-github-resources.sh --apply \
+            --repo "$REPO" \
+            --plan-file cleanup-plan.json

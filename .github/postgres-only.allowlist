@@ -1,0 +1,9 @@
+# Exact-path allowlist for scripts/check-postgres-only.sh.
+#
+# Format: <tracked path><TAB or spaces><reason>. Blank lines and # comments
+# are ignored. Entries must name the exact file and state why the MySQL
+# identifier is intentionally retained — broad path/regex exclusions are
+# prohibited by the gate contract.
+#
+scripts/check-postgres-only.sh	The gate script itself defines the MySQL detection pattern.
+.github/postgres-only.allowlist	Self-referential — entry format comments necessarily name MySQL.

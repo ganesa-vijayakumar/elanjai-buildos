@@ -1,0 +1,154 @@
+name: promote
+
+# Digest promotion — resolves the release asset manifest for the requested
+# version (manifest.json + checksums.txt attached to the GitHub release by
+# release.yml), validates version/commit, and renders the pinned
+# BUILDOS_*_IMAGE digest set (scripts/deploy-manifest.sh) for the target
+# environment. A mutable tag is never deployment identity.
+#
+# Manifest-only for now: no live deploy target is wired to CI — the run
+# produces images.env + deploy-plan.md artifacts to apply on the target host.
+# The protected GitHub environment gate still records the approval, and the
+# same job boundary is where a real deploy step plugs in later.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version to promote (e.g. 1.4.0)'
+        required: true
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: ['preprod', 'prod']
+      service:
+        description: 'Which service to include in the pinned image set'
+        required: true
+        type: choice
+        default: 'all'
+        options: ['all', 'landing', 'tenant', 'admin', 'backend']
+      confirm:
+        description: 'Type "promote" to proceed'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  # Shared deployment group — promote and rollback serialize per environment.
+  group: deployment-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  # Cheap validation runs before the protected environment gate is requested.
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      release_tag: ${{ steps.check.outputs.release_tag }}
+      target_commitish: ${{ steps.check.outputs.target_commitish }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          WORKFLOW_REF: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -euo pipefail
+          [ "$WORKFLOW_REF" = "main" ] \
+            || { echo "::error::promote must be dispatched from main (got '$WORKFLOW_REF')"; exit 1; }
+          [ "$CONFIRM" = "promote" ] || { echo "::error::confirm must be exactly 'promote'"; exit 1; }
+          if [[ ! "$INPUT_VERSION" =~ ^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "::error::version must be semver (optional leading v, optional -prerelease)"; exit 1
+          fi
+          VERSION="${INPUT_VERSION#v}"
+          TAG="v$VERSION"
+          # The release must exist and be published — a draft is not promotable.
+          if ! gh release view "$TAG" --repo "$REPO" --json isDraft,targetCommitish > rel.json 2>/dev/null; then
+            echo "::error::no release found for version $VERSION — run release.yml first"; exit 1
+          fi
+          [ "$(jq -r '.isDraft' rel.json)" = "false" ] \
+            || { echo "::error::release $TAG is still a draft"; exit 1; }
+          TARGET=$(jq -r '.targetCommitish // empty' rel.json)
+          [[ "$TARGET" =~ ^[0-9a-f]{40}$ ]] \
+            || { echo "::error::release $TAG does not target a resolvable commit SHA ($TARGET)"; exit 1; }
+          {
+            echo "version=$VERSION"
+            echo "release_tag=$TAG"
+            echo "target_commitish=$TARGET"
+          } >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ github.event.inputs.environment }} # protected — recorded approval
+    steps:
+      - name: Fetch and verify release manifest assets
+        id: manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+          TARGET_COMMIT: ${{ needs.validate.outputs.target_commitish }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release"
+          gh release download "$RELEASE_TAG" --repo "$REPO" \
+            --pattern 'manifest.json' --pattern 'checksums.txt' \
+            --dir "$RUNNER_TEMP/release" --clobber
+          cd "$RUNNER_TEMP/release"
+          grep -E '^[0-9a-f]{64}  manifest\.json$' checksums.txt > manifest.sha256
+          [ "$(wc -l < manifest.sha256)" -eq 1 ] \
+            || { echo "::error::checksums.txt must contain exactly one manifest.json checksum"; exit 1; }
+          sha256sum -c manifest.sha256
+          COMMIT=$(jq -r '.commit // empty' manifest.json)
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::manifest commit is not a 40-hex SHA"; exit 1; }
+          [ "$COMMIT" = "$TARGET_COMMIT" ] \
+            || { echo "::error::manifest commit $COMMIT does not match release target $TARGET_COMMIT"; exit 1; }
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+
+      # Deployment code comes from the workflow's own commit (github.sha) —
+      # the current reviewed revision of the deploy helper. The manifest
+      # commit is deployment *data* (which digests to deploy), not tooling
+      # source; running the helper from the picked release would execute
+      # whatever script version that release happened to contain.
+      - name: Checkout deploy helper at workflow commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Render pinned image set + deploy plan
+        env:
+          TARGET_ENV: ${{ github.event.inputs.environment }}
+          SERVICE: ${{ github.event.inputs.service }}
+          EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          bash scripts/deploy-manifest.sh \
+            --manifest "$RUNNER_TEMP/release/manifest.json" \
+            --environment "$TARGET_ENV" \
+            --service "$SERVICE" \
+            --mode promote \
+            --expected-version "$EXPECTED_VERSION" \
+            --out-dir dist
+          cat dist/images.env
+          cat dist/deploy-plan.md
+
+      - name: Upload deploy plan artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: deploy-plan-${{ github.event.inputs.environment }}-v${{ needs.validate.outputs.version }}
+          path: |
+            dist/images.env
+            dist/deploy-plan.md
+          retention-days: 400
+
+      - name: Summarize
+        run: cat dist/deploy-plan.md >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,13 @@
+title = "buildos gitleaks config"
+
+# Allowlist only the known committed placeholders — everything else still
+# fails the scan. Both are env-var fallbacks / test fixtures, never live
+# credentials: compose and any deployment always inject JWT_SECRET, and the
+# test value exists only under src/test.
+[allowlist]
+description = "Known dev/test JWT placeholder secrets"
+regexTarget = "secret"
+regexes = [
+    '''test-jwt-secret-[0-9a-f]+''',                                        # backend/src/test/resources/application.properties — test fixture
+    '''9a2f8c4e6b0d71f3e8b925a45747f894a3d6bc70fa8d51211234567890abcdef''', # backend/src/main/resources/application.properties — dev-only JWT_SECRET fallback
+]

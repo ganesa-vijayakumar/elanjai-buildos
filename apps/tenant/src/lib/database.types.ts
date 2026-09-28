@@ -1,4 +1,4 @@
-// Database type definitions for MySQL backend
+// Database type definitions for PostgreSQL backend
 // Generated from the implementation plan schema
 
 export type Json =

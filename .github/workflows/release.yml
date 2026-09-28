@@ -1,0 +1,1049 @@
+name: release
+
+# Release pipeline — manual-only (workflow_dispatch). Resolves source_ref to an
+# immutable commit, runs the selected release checks, builds the four
+# deployment images with immutable version tags (never `latest`), and publishes
+# manifest.json + checksums.txt + release evidence as GitHub release assets.
+# promote.yml and rollback.yml consume the release-asset manifest — never an
+# expiring workflow artifact and never a mutable tag.
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: 'Branch, tag, or full SHA to release'
+        required: true
+        type: string
+      version:
+        description: 'Semver release version (optional leading v, optional -prerelease suffix)'
+        required: true
+        type: string
+      confirm_publish:
+        description: '"publish" requires all five checks; "publish-skip-checks" permits skips and records them'
+        required: true
+        type: string
+      run_validation:
+        description: 'postgres-only gate + backend mvn verify + frontend lint/typecheck/build'
+        required: false
+        type: boolean
+        default: false
+      run_security:
+        description: 'CodeQL + gitleaks + OWASP dependency-check + Trivy fs; adds image scan + SBOM after push'
+        required: false
+        type: boolean
+        default: false
+      run_e2e:
+        description: 'Local Docker Compose deployment + host-class smoke suite (deploy/scripts/smoke.sh)'
+        required: false
+        type: boolean
+        default: false
+      run_load_test:
+        description: 'Bounded k6 smoke against test_target_url'
+        required: false
+        type: boolean
+        default: false
+      run_backup_restore:
+        description: 'Round-trip drill: backup-db.sh + restore-db.sh against an isolated PostgreSQL'
+        required: false
+        type: boolean
+        default: false
+      test_target_url:
+        description: 'https URL of an ALLOWED_TEST_HOSTS host (required only when run_load_test is selected)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize all releases — "1.4.0" and "v1.4.0" normalize to the same tag.
+  group: release
+  cancel-in-progress: false # release runs never cancel mid-flight
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # ── Input validation + immutable ref resolution ─────────────────────────────
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      version: ${{ steps.resolve.outputs.version }}
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+    steps:
+      - id: resolve
+        env:
+          WORKFLOW_REF: ${{ github.ref_name }}
+          INPUT_REF: ${{ github.event.inputs.source_ref }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          CONFIRM: ${{ github.event.inputs.confirm_publish }}
+          RUN_VALIDATION: ${{ github.event.inputs.run_validation }}
+          RUN_SECURITY: ${{ github.event.inputs.run_security }}
+          RUN_E2E: ${{ github.event.inputs.run_e2e }}
+          RUN_LOAD: ${{ github.event.inputs.run_load_test }}
+          RUN_BACKUP: ${{ github.event.inputs.run_backup_restore }}
+          TEST_URL: ${{ github.event.inputs.test_target_url }}
+          ALLOWED_HOSTS: ${{ vars.ALLOWED_TEST_HOSTS }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # The workflow definition itself must come from the protected default
+          # branch — a workflow_dispatch from a feature branch could otherwise
+          # run unreviewed workflow code with release/package permissions.
+          [ "$WORKFLOW_REF" = "main" ] || {
+            echo "::error::release must be dispatched from main (got '$WORKFLOW_REF')"; exit 1
+          }
+
+          if [[ ! "$INPUT_REF" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+            echo "::error::source_ref contains invalid characters"; exit 1
+          fi
+
+          if [[ ! "$INPUT_VERSION" =~ ^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "::error::version must be semver (optional leading v, optional -prerelease): $INPUT_VERSION"; exit 1
+          fi
+          VERSION="${INPUT_VERSION#v}"
+
+          case "$CONFIRM" in
+            publish)
+              for flag in "$RUN_VALIDATION" "$RUN_SECURITY" "$RUN_E2E" "$RUN_LOAD" "$RUN_BACKUP"; do
+                if [ "$flag" != "true" ]; then
+                  echo "::error::confirm_publish=publish requires all five checks (run_validation, run_security, run_e2e, run_load_test, run_backup_restore) to be true"
+                  exit 1
+                fi
+              done
+              ;;
+            publish-skip-checks)
+              echo "::notice::confirm_publish=publish-skip-checks — skipped checks will be recorded in the release evidence"
+              ;;
+            *)
+              echo "::error::confirm_publish must be exactly 'publish' or 'publish-skip-checks'"; exit 1
+              ;;
+          esac
+
+          # run_e2e deploys a local Docker Compose stack and needs no external
+          # target; test_target_url is consumed only by the run_load_test k6
+          # smoke, so it is required only when that check is selected.
+          if [ "$RUN_LOAD" = "true" ]; then
+            [ -n "$TEST_URL" ] || { echo "::error::test_target_url is required when run_load_test is selected"; exit 1; }
+            if [[ ! "$TEST_URL" =~ ^https://[a-zA-Z0-9.-]+(:[0-9]+)?(/[a-zA-Z0-9._/-]*)?$ ]]; then
+              echo "::error::test_target_url must be an https:// URL"; exit 1
+            fi
+            HOST="${TEST_URL#https://}"; HOST="${HOST%%/*}"; HOST="${HOST%%:*}"
+            [ -n "$ALLOWED_HOSTS" ] || { echo "::error::vars.ALLOWED_TEST_HOSTS is not configured — refusing test target"; exit 1; }
+            ok=0
+            IFS=',' read -ra hosts <<< "$ALLOWED_HOSTS"
+            for h in "${hosts[@]}"; do
+              h="$(echo "$h" | tr -d ' ')"
+              if [ "$HOST" = "$h" ]; then ok=1; break; fi
+            done
+            [ "$ok" = "1" ] || { echo "::error::test target host '$HOST' is not in ALLOWED_TEST_HOSTS"; exit 1; }
+            echo "test target $HOST is allow-listed"
+          fi
+
+          # Resolve source_ref to a 40-hex commit SHA: heads, then tags (peeled
+          # first for annotated tags), then accept a raw SHA only if GitHub can
+          # verify the commit exists.
+          GIT_AUTH=(-c "http.https://github.com/.extraheader=AUTHORIZATION: bearer $GH_TOKEN")
+          REMOTE="https://github.com/$REPO.git"
+          SHA=$(git "${GIT_AUTH[@]}" ls-remote "$REMOTE" "refs/heads/$INPUT_REF" | awk '{print $1}' | head -n1)
+          if [ -z "$SHA" ]; then
+            SHA=$(git "${GIT_AUTH[@]}" ls-remote "$REMOTE" "refs/tags/$INPUT_REF^{}" | awk '{print $1}' | head -n1)
+          fi
+          if [ -z "$SHA" ]; then
+            SHA=$(git "${GIT_AUTH[@]}" ls-remote "$REMOTE" "refs/tags/$INPUT_REF" | awk '{print $1}' | head -n1)
+          fi
+          if [ -z "$SHA" ] && [[ "$INPUT_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            gh api "repos/$REPO/commits/$INPUT_REF" --jq '.sha' > /dev/null
+            SHA="$INPUT_REF"
+          fi
+          if [[ ! "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::could not resolve source_ref '$INPUT_REF' to a commit SHA"; exit 1
+          fi
+
+          echo "resolved $INPUT_REF -> $SHA"
+          {
+            echo "sha=$SHA"
+            echo "version=$VERSION"
+            echo "release_tag=v$VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+  # ── Fail fast before building: release + tags must not already exist ────────
+  preflight:
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refuse published release or foreign draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --repo "$REPO" --json isDraft,targetCommitish > rel.json 2>/dev/null; then
+            IS_DRAFT=$(jq -r '.isDraft' rel.json)
+            TARGET=$(jq -r '.targetCommitish' rel.json)
+            if [ "$IS_DRAFT" != "true" ]; then
+              echo "::error::a published release already exists for $RELEASE_TAG — pick a new version"; exit 1
+            fi
+            if [ "$TARGET" != "$SHA" ]; then
+              echo "::error::draft release $RELEASE_TAG targets $TARGET, not the resolved commit $SHA — refusing to reuse it"; exit 1
+            fi
+            echo "same-target draft $RELEASE_TAG will be completed"
+          else
+            echo "no existing release for $RELEASE_TAG"
+          fi
+
+      - name: Refuse a git tag pointing at another commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # A pre-existing tag is allowed only when it resolves to the exact
+          # commit being released. A tag at any other commit would leave the
+          # published release (created at --target SHA) disagreeing with the
+          # tag's real target, or imply the tag must be re-pointed — refuse.
+          REF=$(gh api "repos/$REPO/git/ref/tags/$RELEASE_TAG" 2>/dev/null || true)
+          if [ -z "$REF" ]; then
+            echo "no existing git tag $RELEASE_TAG"
+            exit 0
+          fi
+          OBJ_SHA=$(jq -r '.object.sha' <<<"$REF")
+          OBJ_TYPE=$(jq -r '.object.type' <<<"$REF")
+          # Annotated tags point at a tag object — peel to the commit.
+          if [ "$OBJ_TYPE" = "tag" ]; then
+            OBJ_SHA=$(gh api "repos/$REPO/git/tags/$OBJ_SHA" --jq '.object.sha')
+          fi
+          if [ "$OBJ_SHA" != "$SHA" ]; then
+            echo "::error::git tag $RELEASE_TAG already exists at $OBJ_SHA, not the resolved commit $SHA — pick a new version"
+            exit 1
+          fi
+          echo "existing tag $RELEASE_TAG already points at $SHA"
+
+      - name: Check immutable-releases setting (warn only)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          VAL=$(gh api "repos/$REPO" --jq '.immutable_releases // empty' 2>/dev/null || true)
+          if [ -z "$VAL" ]; then
+            VAL=$(gh api "repos/$REPO/immutable-releases" --jq '.enabled // empty' 2>/dev/null || true)
+          fi
+          if [ "$VAL" = "true" ]; then
+            echo "immutable releases: enabled"
+          else
+            echo "::warning::Immutable releases are not enabled (or not exposed via the API). Enable 'Immutable releases' in repository settings when supported so published release assets cannot be replaced."
+          fi
+
+      - name: Fail if immutable image tags already exist
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          for img in buildos-landing buildos-tenant buildos-admin buildos-backend; do
+            ref="${{ env.REGISTRY }}/$OWNER/$img:$VERSION"
+            if docker buildx imagetools inspect "$ref" > /dev/null 2>&1; then
+              echo "::error::immutable tag already exists: $ref — pick a new version"; exit 1
+            fi
+            echo "tag free: $ref"
+          done
+
+  # ── Release checks (each gated by its input; all run when publish) ──────────
+  check-postgres-only:
+    needs: resolve
+    if: ${{ github.event.inputs.run_validation == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - run: bash scripts/check-postgres-only.sh
+
+  check-backend:
+    needs: resolve
+    if: ${{ github.event.inputs.run_validation == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: elanjai_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d elanjai_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ hashFiles('backend/pom.xml') }}
+      - name: Unit + integration tests (tenant isolation, realm boundary, provisioning)
+        working-directory: backend
+        env:
+          TEST_DB_URL: jdbc:postgresql://localhost:5432/elanjai_test
+        run: mvn -B verify
+
+  check-frontend-landing:
+    needs: resolve
+    if: ${{ github.event.inputs.run_validation == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint && npm run typecheck -w @buildos/landing && npm run build -w @buildos/landing
+
+  check-frontend-tenant:
+    needs: resolve
+    if: ${{ github.event.inputs.run_validation == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint && npm run typecheck -w @buildos/tenant && npm run build -w @buildos/tenant
+
+  check-frontend-admin:
+    needs: resolve
+    if: ${{ github.event.inputs.run_validation == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint && npm run typecheck -w @buildos/admin && npm run build -w @buildos/admin
+
+  security-codeql:
+    needs: resolve
+    if: ${{ github.event.inputs.run_security == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write # codeql upload only — scoped to this job
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - uses: github/codeql-action/init@faaca9a8f6edddba5725ffe5adefdab6669a2eca # v3
+        with:
+          languages: java-kotlin, javascript-typescript
+      - uses: github/codeql-action/analyze@faaca9a8f6edddba5725ffe5adefdab6669a2eca # v3
+
+  security-scans:
+    needs: resolve
+    if: ${{ github.event.inputs.run_security == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          fetch-depth: 0 # gitleaks scans full history
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+      - name: OWASP dependency check (CVSS >= 7 fails)
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: mvn -B -ntp org.owasp:dependency-check-maven:check -Dformats=HTML
+        working-directory: backend
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: release-evidence-dependency-check
+          path: backend/target/dependency-check-report.html
+          if-no-files-found: warn
+          retention-days: 400
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        with:
+          scan-type: 'fs'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          format: 'table'
+          output: 'trivy-fs-report.txt'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: release-evidence-trivy-fs
+          path: trivy-fs-report.txt
+          if-no-files-found: warn
+          retention-days: 400
+
+  # Real local deployment: the checked-out source is built and started with
+  # generated ephemeral secrets, then the host-class smoke suite runs against
+  # the gateway — the same suite used after rollout stages. No live
+  # environment credentials are needed.
+  e2e:
+    needs: resolve
+    if: ${{ github.event.inputs.run_e2e == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # The compose file uses fixed container_name values — serialize e2e across
+    # any concurrent release runs so two stacks never collide on names/ports.
+    # run_attempt makes the compose project (and its network) unique per
+    # attempt so a retried run cannot collide with leftover resources.
+    concurrency:
+      group: e2e-compose-stack
+      cancel-in-progress: false
+    env:
+      COMPOSE_PROJECT: e2e-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+
+      - name: Generate ephemeral stack secrets
+        run: |
+          set -euo pipefail
+          {
+            echo "JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')"
+          } > .env.e2e
+          chmod 600 .env.e2e
+
+      - name: Build and start the stack (Docker Compose)
+        run: |
+          set -euo pipefail
+          # container_name values in docker-compose.yml are fixed strings, so
+          # they outlive the per-attempt project name — remove any leftovers
+          # from a prior attempt before starting (no-op on a clean runner).
+          docker rm -f elanjai-postgres elanjai-mailpit elanjai-backend \
+            elanjai-landing elanjai-tenant elanjai-admin elanjai-gateway \
+            2>/dev/null || true
+          docker compose --env-file .env.e2e -p "$COMPOSE_PROJECT" up -d --build \
+            postgres mailpit backend landing tenant admin gateway
+          docker compose --env-file .env.e2e -p "$COMPOSE_PROJECT" ps
+
+      - name: Wait for stack health
+        run: |
+          set -euo pipefail
+          # Probe through the gateway on :80 with Host headers — apex →
+          # landing, admin.* → admin, <slug>.* → tenant, /api → backend.
+          declare -a probes=(
+            "localhost|/api/actuator/health"
+            "admin.localhost|/api/actuator/health"
+            "demo.localhost|/api/actuator/health"
+          )
+          for probe in "${probes[@]}"; do
+            host="${probe%%|*}"; path="${probe##*|}"
+            ok=0
+            for _ in $(seq 1 90); do
+              if curl -fsS --max-time 5 -H "Host: $host" "http://localhost${path}" | grep -q '"UP"'; then ok=1; break; fi
+              sleep 5
+            done
+            if [ "$ok" != "1" ]; then
+              echo "::error::stack did not become healthy: $host$path"
+              docker compose --env-file .env.e2e -p "$COMPOSE_PROJECT" logs --no-color | tail -n 200 || true
+              exit 1
+            fi
+            echo "healthy: $host$path"
+          done
+
+      - name: Host-class smoke suite
+        run: bash deploy/scripts/smoke.sh http://localhost demo | tee smoke.txt
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: release-evidence-smoke
+          path: smoke.txt
+          if-no-files-found: warn
+          retention-days: 400
+
+      - name: Collect compose logs on failure
+        if: failure()
+        run: docker compose --env-file .env.e2e -p "$COMPOSE_PROJECT" logs --no-color > compose-logs.txt || true
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: release-evidence-compose-logs
+          path: compose-logs.txt
+          if-no-files-found: warn
+          retention-days: 400
+
+      - name: Teardown compose resources
+        if: always()
+        run: |
+          docker compose --env-file .env.e2e -p "$COMPOSE_PROJECT" down -v --remove-orphans || true
+          rm -f .env.e2e
+
+  load-test:
+    needs: resolve
+    if: ${{ github.event.inputs.run_load_test == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      # Bounded smoke against the allow-listed target: 5 VUs / 30s on public
+      # edge endpoints across all three host classes — no credentials required.
+      - uses: grafana/k6-action@e4714b734f2b0afaabeb7b4a69142745548ab9ec # v0.3.1
+        with:
+          filename: tests/performance/k6/edge-smoke.js
+        env:
+          BASE_URL: ${{ github.event.inputs.test_target_url }} # validated https + allow-listed in resolve
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: release-evidence-k6
+          path: k6-edge-smoke-summary.json
+          if-no-files-found: warn
+          retention-days: 400
+
+  # Backup round-trip drill: apply the real Flyway migrations to an isolated
+  # PostgreSQL, seed a demo tenant + marker rows, run deploy/scripts/
+  # backup-db.sh, restore into a scratch database via restore-db.sh, and probe
+  # the restored schemas. Fails closed on any dump/restore/probe error.
+  backup-restore:
+    needs: resolve
+    if: ${{ github.event.inputs.run_backup_restore == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # run_attempt keeps the network/container names unique per attempt so a
+      # retried run cannot collide with leftover resources from a prior try.
+      NET: backup-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      PG_CONTAINER: pg-restore-${{ github.run_id }}-${{ github.run_attempt }}
+      PG_USER: postgres
+      PG_DB: elanjai
+      RESTORE_DB: elanjai_restore_check
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+
+      - name: Start isolated PostgreSQL container
+        run: |
+          set -euo pipefail
+          PG_PASS="$(openssl rand -hex 24)"
+          echo "PG_PASS=$PG_PASS" >> "$GITHUB_ENV"
+          docker network create "$NET"
+          docker run -d --name "$PG_CONTAINER" --network "$NET" \
+            -e POSTGRES_USER=postgres \
+            -e "POSTGRES_PASSWORD=$PG_PASS" \
+            -e POSTGRES_DB=elanjai \
+            postgres:16-alpine
+          for _ in $(seq 1 60); do
+            docker exec "$PG_CONTAINER" pg_isready -U postgres -d elanjai >/dev/null 2>&1 && break
+            sleep 2
+          done
+          docker exec "$PG_CONTAINER" pg_isready -U postgres -d elanjai
+
+      - name: Apply real migrations and seed a tenant + markers
+        run: |
+          set -euo pipefail
+          # -i only where stdin carries SQL; -c one-shots run without it.
+          psql_c()  { docker exec "$PG_CONTAINER" psql -U postgres -d "$PG_DB" -v ON_ERROR_STOP=1 "$@"; }
+          psql_in() { docker exec -i "$PG_CONTAINER" psql -U postgres -d "$PG_DB" -v ON_ERROR_STOP=1; }
+          # Public schema migrations (db/migration) run against public.
+          while IFS= read -r f; do
+            echo "apply public migration: $f"
+            psql_in < "$f"
+          done < <(find backend/src/main/resources/db/migration -maxdepth 1 -name 'V*.sql' | sort -V)
+          # Tenant migrations (db/migration-tenant) run with search_path set —
+          # all objects unqualified, mirroring TenantSchemaProvisioner. The
+          # schema must exist first: a missing search_path target silently
+          # falls back to public.
+          psql_c -c "CREATE SCHEMA t_demo;"
+          while IFS= read -r f; do
+            echo "apply tenant migration: $f"
+            { echo "SET search_path TO t_demo, public;"; cat "$f"; } | psql_in
+          done < <(find backend/src/main/resources/db/migration-tenant -maxdepth 1 -name 'V*.sql' | sort -V)
+          TENANT_TABLES=$(psql_c -tA -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='t_demo';")
+          [ "${TENANT_TABLES:-0}" -gt 0 ] \
+            || { echo "::error::t_demo schema is empty after migrations"; exit 1; }
+          # tenants row so backup-db.sh auto-enumerates t_demo; marker rows in
+          # both schemas prove round-trip fidelity after restore.
+          psql_in <<'SQL'
+          INSERT INTO tenants (company_name, slug, schema_name, owner_name, owner_email, status)
+            VALUES ('Drill Co', 'demo', 't_demo', 'Drill Owner', 'drill@example.local', 'TRIAL');
+          CREATE TABLE public.__backup_marker (note text);
+          INSERT INTO public.__backup_marker VALUES ('release-backup-drill');
+          CREATE TABLE t_demo.__backup_marker (note text);
+          INSERT INTO t_demo.__backup_marker VALUES ('release-backup-drill');
+          SQL
+
+      - name: Run backup-db.sh against the isolated database
+        run: |
+          set -euo pipefail
+          export BACKUP_DIR="$RUNNER_TEMP/backups"
+          bash deploy/scripts/backup-db.sh
+          find "$BACKUP_DIR" -name '*.dump' -printf '%p %s bytes\n' | sort
+
+      - name: Restore into a scratch database via restore-db.sh
+        run: |
+          set -euo pipefail
+          export BACKUP_DIR="$RUNNER_TEMP/backups"
+          docker exec "$PG_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "DROP DATABASE IF EXISTS $RESTORE_DB WITH (FORCE);" \
+            -c "CREATE DATABASE $RESTORE_DB;"
+          DUMPDIR=$(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d | head -n1)
+          [ -n "$DUMPDIR" ] || { echo "::error::backup produced no dump directory"; exit 1; }
+          # pg_dump --schema=<s> does not emit CREATE SCHEMA — tenant schemas
+          # must be pre-created in the scratch database before pg_restore.
+          while IFS= read -r dump; do
+            s="$(basename "$dump" .dump)"
+            [ "$s" = "public" ] && continue
+            echo "pre-create schema $s in $RESTORE_DB"
+            docker exec "$PG_CONTAINER" psql -U postgres -d "$RESTORE_DB" \
+              -v ON_ERROR_STOP=1 -c "CREATE SCHEMA $s;"
+          done < <(find "$DUMPDIR" -name '*.dump' | sort)
+          PG_DB="$RESTORE_DB" bash deploy/scripts/restore-db.sh "$DUMPDIR"
+
+      - name: Probe restored schemas
+        run: |
+          set -euo pipefail
+          {
+            PUB_TABLES=$(docker exec "$PG_CONTAINER" psql -U postgres -d "$RESTORE_DB" -tA \
+              -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';")
+            TEN_TABLES=$(docker exec "$PG_CONTAINER" psql -U postgres -d "$RESTORE_DB" -tA \
+              -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='t_demo';")
+            PUB_MARK=$(docker exec "$PG_CONTAINER" psql -U postgres -d "$RESTORE_DB" -tA \
+              -c "SELECT note FROM public.__backup_marker;" || true)
+            TEN_MARK=$(docker exec "$PG_CONTAINER" psql -U postgres -d "$RESTORE_DB" -tA \
+              -c "SELECT note FROM t_demo.__backup_marker;" || true)
+            echo "restored public tables: $PUB_TABLES"
+            echo "restored t_demo tables: $TEN_TABLES"
+            echo "public marker: ${PUB_MARK:-<missing>}"
+            echo "t_demo marker: ${TEN_MARK:-<missing>}"
+            [ "${PUB_TABLES:-0}" -gt 0 ] || { echo "::error::public schema restored empty"; exit 1; }
+            [ "${TEN_TABLES:-0}" -gt 0 ] || { echo "::error::t_demo schema restored empty"; exit 1; }
+            [ "$PUB_MARK" = "release-backup-drill" ] || { echo "::error::public marker row missing"; exit 1; }
+            [ "$TEN_MARK" = "release-backup-drill" ] || { echo "::error::t_demo marker row missing"; exit 1; }
+            echo "PASS — backup/restore round-trip verified"
+          } | tee restore-probe.txt
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: release-evidence-backup-restore
+          path: restore-probe.txt
+          if-no-files-found: warn
+          retention-days: 400
+
+      - name: Teardown isolated resources
+        if: always()
+        run: |
+          docker rm -fv "$PG_CONTAINER" 2>/dev/null || true
+          docker network rm "$NET" 2>/dev/null || true
+
+  # ── Aggregator: skipped checks are fine; failed/cancelled checks fail here ──
+  checks:
+    needs:
+      - check-postgres-only
+      - check-backend
+      - check-frontend-landing
+      - check-frontend-tenant
+      - check-frontend-admin
+      - security-codeql
+      - security-scans
+      - e2e
+      - load-test
+      - backup-restore
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      results: ${{ steps.results.outputs.results }}
+    steps:
+      - id: results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$NEEDS" | jq -c 'map_values(.result)' > checks-results.json
+          cat checks-results.json
+          BAD=$(jq -r 'to_entries | map(select(.value != "success" and .value != "skipped") | .key + "=" + .value) | .[]' checks-results.json)
+          if [ -n "$BAD" ]; then
+            echo "::error::release checks did not pass:"
+            echo "$BAD"
+            exit 1
+          fi
+          echo "results=$(cat checks-results.json)" >> "$GITHUB_OUTPUT"
+
+  # ── Build the four images — immutable version tags only ─────────────────────
+  images:
+    needs: [resolve, preflight, checks]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { role: landing, image_name: buildos-landing, dockerfile: apps/landing/Dockerfile, context: . }
+          - { role: tenant,  image_name: buildos-tenant,  dockerfile: apps/tenant/Dockerfile,  context: . }
+          - { role: admin,   image_name: buildos-admin,   dockerfile: apps/admin/Dockerfile,   context: . }
+          - { role: backend, image_name: buildos-backend, dockerfile: backend/Dockerfile,      context: ./backend }
+    env:
+      IMAGE_REF: ghcr.io/${{ github.repository_owner }}/${{ matrix.image_name }}
+    steps:
+      - name: Checkout resolved commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refuse existing immutable tag (fail before push)
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "${{ env.IMAGE_REF }}:$VERSION" > /dev/null 2>&1; then
+            echo "::error::immutable tag already exists: ${{ env.IMAGE_REF }}:$VERSION — pick a new version"
+            exit 1
+          fi
+
+      - name: Build + push (linux/amd64, immutable version tag)
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ env.IMAGE_REF }}:${{ needs.resolve.outputs.version }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.resolve.outputs.sha }}
+            org.opencontainers.image.version=${{ needs.resolve.outputs.version }}
+          build-args: |
+            APP_VERSION=${{ needs.resolve.outputs.version }}
+            RELEASE=${{ needs.resolve.outputs.sha }}
+          cache-from: type=gha,scope=${{ matrix.image_name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image_name }}
+
+      - name: Verify pushed digest and record it
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          BUILT: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          PUSHED=$(docker buildx imagetools inspect "${{ env.IMAGE_REF }}:$VERSION" --format '{{.Manifest.Digest}}')
+          if [ "$PUSHED" != "$BUILT" ]; then
+            echo "::error::pushed digest mismatch ($PUSHED != $BUILT)"; exit 1
+          fi
+          echo "${{ env.IMAGE_REF }}@$PUSHED" > digest.txt
+          cat digest.txt
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digest-${{ matrix.role }}
+          path: digest.txt
+          retention-days: 90
+
+  # ── Optional post-push evidence: image scan + SBOM per digest ───────────────
+  image-scan:
+    needs: [resolve, images]
+    if: ${{ github.event.inputs.run_security == true && !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { role: landing, image_name: buildos-landing }
+          - { role: tenant,  image_name: buildos-tenant }
+          - { role: admin,   image_name: buildos-admin }
+          - { role: backend, image_name: buildos-backend }
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: digest-${{ matrix.role }}
+
+      - name: Resolve pushed digest reference
+        id: ref
+        run: |
+          set -euo pipefail
+          REF=$(tr -d '[:space:]' < digest.txt)
+          [[ "$REF" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]] \
+            || { echo "::error::digest artifact is not an image@sha256 ref: $REF"; exit 1; }
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: Trivy image scan (digest)
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        with:
+          scan-type: 'image'
+          image-ref: ${{ steps.ref.outputs.ref }}
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          format: 'table'
+          output: trivy-image-${{ matrix.role }}.txt
+
+      - name: CycloneDX SBOM (digest)
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        with:
+          scan-type: 'image'
+          image-ref: ${{ steps.ref.outputs.ref }}
+          format: 'cyclonedx'
+          output: sbom-${{ matrix.image_name }}.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: release-evidence-image-scan-${{ matrix.role }}
+          path: |
+            trivy-image-${{ matrix.role }}.txt
+            sbom-${{ matrix.image_name }}.json
+          if-no-files-found: warn
+          retention-days: 400
+
+  # ── Manifest + checksums + evidence summary ─────────────────────────────────
+  manifest:
+    needs: [resolve, checks, images, image-scan]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ needs.resolve.outputs.version }}
+      release_tag: ${{ needs.resolve.outputs.release_tag }}
+      sha: ${{ needs.resolve.outputs.sha }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digest-*
+          path: digests/
+
+      - name: Build and validate manifest.json + checksums.txt
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          declare -A REF=()
+          for role in landing tenant admin backend; do
+            f="digests/digest-$role/digest.txt"
+            [ -f "$f" ] || { echo "::error::missing digest artifact for role $role"; exit 1; }
+            REF[$role]=$(tr -d '[:space:]' < "$f")
+            if [[ ! "${REF[$role]}" =~ ^ghcr\.io/${OWNER}/[a-z0-9._-]+@sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::digest artifact for $role is not a ghcr image@sha256 ref: ${REF[$role]}"; exit 1
+            fi
+          done
+          jq -n \
+            --arg v "$VERSION" --arg c "$SHA" --arg created "$(date -u +%FT%TZ)" \
+            --arg landing "${REF[landing]}" --arg tenant "${REF[tenant]}" \
+            --arg admin "${REF[admin]}" --arg backend "${REF[backend]}" \
+            '{version: $v, commit: $c, created: $created,
+              images: {landing: $landing, tenant: $tenant, admin: $admin, backend: $backend}}' > manifest.json
+          jq -e --arg v "$VERSION" --arg c "$SHA" \
+            '.version == $v and .commit == $c
+             and (.images | keys | sort) == ["admin","backend","landing","tenant"]
+             and (.images | to_entries | all(.value | test("@sha256:[0-9a-f]{64}$")))' \
+            manifest.json > /dev/null
+          cat manifest.json
+          sha256sum manifest.json > checksums.txt
+          cat checksums.txt
+
+      - name: Write release evidence summary
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          SOURCE_REF: ${{ github.event.inputs.source_ref }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
+          CONFIRM: ${{ github.event.inputs.confirm_publish }}
+          CHECKS: ${{ needs.checks.outputs.results }}
+          TEST_URL: ${{ github.event.inputs.test_target_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          {
+            echo "# Release evidence — $RELEASE_TAG"
+            echo
+            echo "- version: \`$VERSION\`"
+            echo "- source_ref: \`$SOURCE_REF\`"
+            echo "- commit: \`$SHA\`"
+            echo "- workflow run: $RUN_URL"
+            echo "- dispatched by: $ACTOR"
+            echo "- confirm_publish: \`$CONFIRM\`"
+            if [ -n "$TEST_URL" ]; then
+              echo "- run_load_test target: \`$TEST_URL\` (deployed target, not the newly built images)"
+            fi
+            echo
+            echo "## Checks"
+            echo
+            echo '| check | result |'
+            echo '|---|---|'
+            echo "$CHECKS" | jq -r 'to_entries[] | "| " + .key + " | " + .value + " |"'
+            echo
+            if [ "$CONFIRM" = "publish-skip-checks" ]; then
+              echo '> **publish-skip-checks**: checks marked "skipped" were intentionally'
+              echo '> bypassed for this release and recorded here as required.'
+            else
+              echo '> confirm_publish=publish — every check above ran and passed.'
+            fi
+          } > release-evidence.md
+          cat release-evidence.md
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-manifest-${{ needs.resolve.outputs.version }}
+          path: |
+            manifest.json
+            checksums.txt
+            release-evidence.md
+          retention-days: 400
+
+      # Guarantees at least one release-evidence-* artifact exists so the
+      # publish job's artifact download never runs dry.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-evidence-summary
+          path: release-evidence.md
+          retention-days: 400
+
+  # ── Publish: draft release -> attach assets -> publish ──────────────────────
+  publish:
+    needs: manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # create the release + upload assets — scoped to this job
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      VERSION: ${{ needs.manifest.outputs.version }}
+      RELEASE_TAG: ${{ needs.manifest.outputs.release_tag }}
+      SHA: ${{ needs.manifest.outputs.sha }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-manifest-*
+          path: dist/
+          merge-multiple: true
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-evidence-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Create or reuse same-target draft, attach assets, publish
+        run: |
+          set -euo pipefail
+          ls -la dist/
+          for f in manifest.json checksums.txt release-evidence.md; do
+            [ -f "dist/$f" ] || { echo "::error::required release asset missing: dist/$f"; exit 1; }
+          done
+
+          if gh release view "$RELEASE_TAG" --repo "$REPO" --json isDraft,targetCommitish > rel.json 2>/dev/null; then
+            IS_DRAFT=$(jq -r '.isDraft' rel.json)
+            TARGET=$(jq -r '.targetCommitish' rel.json)
+            [ "$IS_DRAFT" = "true" ] || { echo "::error::published release $RELEASE_TAG already exists"; exit 1; }
+            [ "$TARGET" = "$SHA" ] || { echo "::error::draft $RELEASE_TAG targets $TARGET, not $SHA"; exit 1; }
+            echo "completing existing same-target draft $RELEASE_TAG"
+            while IFS= read -r asset; do
+              [ -n "$asset" ] || continue
+              gh release delete-asset "$RELEASE_TAG" "$asset" --repo "$REPO" --yes
+            done < <(gh release view "$RELEASE_TAG" --repo "$REPO" --json assets --jq '.assets[].name')
+          else
+            gh release create "$RELEASE_TAG" --repo "$REPO" --draft \
+              --target "$SHA" --title "$RELEASE_TAG" \
+              --notes-file dist/release-evidence.md
+          fi
+
+          gh release edit "$RELEASE_TAG" --repo "$REPO" \
+            --notes-file dist/release-evidence.md
+
+          for f in dist/*; do
+            [ -f "$f" ] || continue
+            gh release upload "$RELEASE_TAG" --repo "$REPO" "$f" --clobber
+          done
+
+          if [[ "$VERSION" == *-* ]]; then
+            gh release edit "$RELEASE_TAG" --repo "$REPO" --draft=false --prerelease
+          else
+            gh release edit "$RELEASE_TAG" --repo "$REPO" --draft=false --latest
+          fi
+          gh release view "$RELEASE_TAG" --repo "$REPO" \
+            --json tagName,isDraft,assets \
+            --jq '{tag: .tagName, draft: .isDraft, assets: [.assets[].name]}'

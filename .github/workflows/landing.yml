@@ -2,24 +2,12 @@ name: frontend-landing
 
 # Landing-only changes produce only the landing artifact — the tenant and
 # admin pipelines do not run for paths outside their scope.
+# Manual-only build check — dispatch on demand; nothing runs automatically.
 on:
-    push:
-        branches: [main, develop]
-        paths:
-            - 'apps/landing/**'
-            - 'packages/shared/**'
-            - 'package.json'
-            - 'package-lock.json'
-            - 'tsconfig.base.json'
-            - '.github/workflows/landing.yml'
-    pull_request:
-        paths:
-            - 'apps/landing/**'
-            - 'packages/shared/**'
-            - 'package.json'
-            - 'package-lock.json'
-            - 'tsconfig.base.json'
-            - '.github/workflows/landing.yml'
+    workflow_dispatch:
+
+permissions:
+    contents: read
 
 jobs:
     build:
