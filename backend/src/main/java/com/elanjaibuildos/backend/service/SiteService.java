@@ -3,6 +3,7 @@ package com.elanjaibuildos.backend.service;
 import com.elanjaibuildos.backend.dto.SiteRequest;
 import com.elanjaibuildos.backend.dto.SiteResponse;
 import com.elanjaibuildos.backend.model.Site;
+import com.elanjaibuildos.backend.model.SiteStatus;
 import com.elanjaibuildos.backend.model.User;
 import com.elanjaibuildos.backend.platform.model.UsageCounter;
 import com.elanjaibuildos.backend.platform.service.PlatformGuard;
@@ -24,6 +25,7 @@ public class SiteService {
     private final UserRepository userRepository;
     private final PlatformGuard platformGuard;
     private final StageService stageService;
+    private final SiteAccessGuard siteAccessGuard;
 
     public List<SiteResponse> getAllSites() {
         return siteRepository.findAll().stream()
@@ -45,9 +47,7 @@ public class SiteService {
     }
 
     public SiteResponse getSiteById(UUID id) {
-        return siteRepository.findById(id)
-                .map(this::mapToResponse)
-                .orElseThrow(() -> new RuntimeException("Site not found"));
+        return mapToResponse(siteAccessGuard.assertReadable(id));
     }
 
     public SiteResponse createSite(SiteRequest request) {

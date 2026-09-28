@@ -23,17 +23,16 @@ public class StageService {
     private final SiteStageRepository stages;
     private final StageTemplateRepository templates;
     private final SiteRepository sites;
+    private final SiteAccessGuard siteAccessGuard;
 
     @Transactional
     public List<SiteStage> forSite(UUID siteId) {
+        Site site = siteAccessGuard.assertReadable(siteId);
         List<SiteStage> list = stages.findBySiteIdOrderByOrderIndexAsc(siteId);
         if (list.isEmpty()) {
             // Backfill sites created before stages existed (D-034: copy templates, editable)
-            Site site = sites.findById(siteId).orElse(null);
-            if (site != null) {
-                copyTemplateToSite(site);
-                list = stages.findBySiteIdOrderByOrderIndexAsc(siteId);
-            }
+            copyTemplateToSite(site);
+            list = stages.findBySiteIdOrderByOrderIndexAsc(siteId);
         }
         return list;
     }

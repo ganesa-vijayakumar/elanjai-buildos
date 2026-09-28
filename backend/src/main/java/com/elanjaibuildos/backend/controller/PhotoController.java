@@ -32,10 +32,12 @@ public class PhotoController {
     private final FileRepository files;
     private final UserRepository users;
     private final FileStorageService storage;
+    private final com.elanjaibuildos.backend.service.SiteAccessGuard guard;
 
     @GetMapping("/api/sites/{siteId}/photos")
     public List<Map<String, Object>> list(@PathVariable UUID siteId,
                                           @RequestParam(required = false) UUID stageId) {
+        guard.assertReadable(siteId);
         List<SitePhoto> rows = stageId != null
                 ? photos.findBySiteIdAndStageIdOrderByUploadedAtDesc(siteId, stageId)
                 : photos.findBySiteIdOrderByUploadedAtDesc(siteId);
@@ -68,6 +70,7 @@ public class PhotoController {
     @GetMapping("/api/files/{id}")
     public ResponseEntity<Resource> download(@PathVariable UUID id) {
         FileRef ref = files.findById(id).orElseThrow();
+        photos.findByFile_Id(id).ifPresent(p -> guard.assertOwner(p.getSite()));
         Resource res = storage.load(ref);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(ref.getContentType() != null

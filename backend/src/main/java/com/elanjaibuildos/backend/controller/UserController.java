@@ -25,6 +25,7 @@ public class UserController {
     private final com.elanjaibuildos.backend.repository.InviteRepository inviteRepository;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     public ResponseEntity<List<UserResponse>> getAllUsers(
             @RequestParam(required = false) String role) {
         if (role != null && !role.isEmpty()) {
@@ -39,6 +40,7 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     public ResponseEntity<UserResponse> getUserById(@PathVariable UUID id) {
         return ResponseEntity.ok(userService.getUserById(id));
     }

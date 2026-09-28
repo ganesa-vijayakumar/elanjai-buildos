@@ -16,6 +16,7 @@ public class SetupController {
     private final SetupService setup;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     public Map<String, Object> state() {
         return setup.get();
     }

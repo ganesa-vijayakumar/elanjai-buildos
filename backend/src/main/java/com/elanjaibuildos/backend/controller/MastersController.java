@@ -31,6 +31,7 @@ public class MastersController {
     private final StageTemplateRepository stageTemplates;
 
     // ---------- brands ----------
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     @GetMapping("/brands")
     public List<Brand> brands() { return brands.findByIsActiveTrueOrderByNameAsc(); }
 
@@ -52,6 +53,7 @@ public class MastersController {
     }
 
     // ---------- materials ----------
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     @GetMapping("/materials")
     public List<Material> materials() { return materials.findByIsActiveTrueOrderByCategoryAscNameAsc(); }
 
@@ -73,6 +75,7 @@ public class MastersController {
     }
 
     // ---------- packages ----------
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     @GetMapping("/packages")
     public List<PlanPackage> packages() { return packages.findByIsActiveTrueOrderByRatePerSqftAsc(); }
 
@@ -94,6 +97,7 @@ public class MastersController {
     }
 
     // ---------- stage templates ----------
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     @GetMapping("/stage-templates")
     public List<StageTemplate> stageTemplates() { return stageTemplates.findAllByOrderByOrderIndexAsc(); }
 

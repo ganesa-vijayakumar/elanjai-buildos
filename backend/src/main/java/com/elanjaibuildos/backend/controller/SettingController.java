@@ -27,16 +27,19 @@ public class SettingController {
     private final UserRepository users;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     public ResponseEntity<List<SettingResponse>> getAllSettings() {
         return ResponseEntity.ok(settingService.getAllSettings());
     }
 
     @GetMapping("/{key}")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     public ResponseEntity<SettingResponse> getSettingByKey(@PathVariable String key) {
         return ResponseEntity.ok(settingService.getSettingByKey(key));
     }
 
     @PutMapping("/{key}")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public ResponseEntity<SettingResponse> updateSetting(@PathVariable String key,
             @RequestBody SettingRequest request) {
         return ResponseEntity.ok(settingService.updateSetting(key, request));

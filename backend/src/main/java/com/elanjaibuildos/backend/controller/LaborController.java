@@ -22,6 +22,7 @@ public class LaborController {
     private final LaborService labor;
 
     // ---------- workers ----------
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     @GetMapping("/sites/{siteId}/workers")
     public List<?> workers(@PathVariable UUID siteId,
                            @RequestParam(defaultValue = "true") boolean activeOnly) {
@@ -43,6 +44,7 @@ public class LaborController {
     }
 
     // ---------- attendance ----------
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     @GetMapping("/sites/{siteId}/attendance")
     public List<?> attendance(@PathVariable UUID siteId,
                               @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -50,6 +52,7 @@ public class LaborController {
         return labor.listSheets(siteId, from, to);
     }
 
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     @GetMapping("/attendance/{sheetId}/records")
     public List<?> sheetRows(@PathVariable UUID sheetId) {
         return labor.sheetRows(sheetId);
@@ -72,6 +75,7 @@ public class LaborController {
         return ResponseEntity.ok(labor.addAdvance(workerId, b.amount(), b.date(), b.reason()));
     }
 
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     @GetMapping("/workers/{workerId}/advances")
     public List<?> advances(@PathVariable UUID workerId) {
         return labor.advancesFor(workerId);
@@ -86,6 +90,7 @@ public class LaborController {
     }
 
     // ---------- wage summary ----------
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER')")
     @GetMapping("/sites/{siteId}/wage-summary")
     public List<?> wageSummary(@PathVariable UUID siteId,
                                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,

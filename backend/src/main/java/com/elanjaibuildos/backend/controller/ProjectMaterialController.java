@@ -27,10 +27,12 @@ public class ProjectMaterialController {
     private final SiteRepository sites;
     private final BrandRepository brands;
     private final UserRepository users;
+    private final com.elanjaibuildos.backend.service.SiteAccessGuard guard;
     private final ObjectMapper om = new ObjectMapper();
 
     @GetMapping
     public List<ProjectMaterial> list(@PathVariable UUID siteId) {
+        guard.assertReadable(siteId);
         return materials.findBySiteIdOrderByCategoryAscMaterialNameAsc(siteId);
     }
 

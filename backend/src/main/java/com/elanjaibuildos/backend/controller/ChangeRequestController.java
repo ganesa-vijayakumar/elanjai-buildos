@@ -29,10 +29,12 @@ public class ChangeRequestController {
     private final SiteRepository sites;
     private final UserRepository users;
     private final NotificationService notifications;
+    private final com.elanjaibuildos.backend.service.SiteAccessGuard guard;
 
     @GetMapping("/api/sites/{siteId}/change-requests")
     public List<ChangeRequest> list(@PathVariable UUID siteId,
                                     @RequestParam(required = false) String status) {
+        guard.assertReadable(siteId);
         return status != null
                 ? crs.findBySiteIdAndStatus(siteId, status)
                 : crs.findBySiteIdOrderByCreatedAtDesc(siteId);
@@ -44,7 +46,7 @@ public class ChangeRequestController {
     @PostMapping("/api/sites/{siteId}/change-requests")
     @PreAuthorize("hasAnyRole('OWNER','ADMIN','SITE_MANAGER','CLIENT')")
     public ResponseEntity<?> create(@PathVariable UUID siteId, @RequestBody CrBody b) {
-        Site site = sites.findById(siteId).orElseThrow();
+        Site site = guard.assertReadable(siteId);
         User me = currentUser();
         ChangeRequest cr = ChangeRequest.builder()
                 .crNumber("CR-" + System.currentTimeMillis() % 100000)

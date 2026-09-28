@@ -26,20 +26,24 @@ public class CollectionService {
     private final SiteStageRepository siteStageRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final SiteAccessGuard siteAccessGuard;
 
     public List<CollectionResponse> getAllCollections() {
+        User me = getCurrentUser();
         return collectionRepository.findAll().stream()
+                .filter(c -> me.getRole() != com.elanjaibuildos.backend.model.Role.CLIENT
+                        || (c.getSite().getClientUser() != null
+                                && c.getSite().getClientUser().getId().equals(me.getId())))
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     public List<CollectionResponse> getCollectionsBySiteId(UUID siteId) {
+        siteAccessGuard.assertReadable(siteId);
         return collectionRepository.findBySiteId(siteId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
-
-    // TODO: Filter by user permissions
 
     public CollectionResponse createCollection(CollectionRequest request) {
         User currentUser = getCurrentUser();
@@ -59,7 +63,9 @@ public class CollectionService {
                 .paymentMode(request.getPaymentMode())
                 .referenceNumber(request.getReferenceNumber())
                 .notes(request.getNotes())
-                .receivedDate(request.getReceivedDate())
+                .receivedDate(request.getReceivedDate() != null
+                        ? request.getReceivedDate()
+                        : java.time.LocalDate.now())
                 .createdBy(currentUser)
                 .approvalStatus(needsApproval
                         ? com.elanjaibuildos.backend.model.ExpenseApprovalStatus.PENDING

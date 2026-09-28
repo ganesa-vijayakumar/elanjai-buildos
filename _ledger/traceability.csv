@@ -24,18 +24,18 @@ REQ-034,Subscriptions/MRR dashboard,,,,,verified
 REQ-035,Suspend/reactivate/offboard,,,,,verified
 REQ-036,Platform settings,,,,,verified
 REQ-037,Support read-only views,,,"PlatformSupportController /api/platform/** read-only (dashboard/tenants/plans/subscriptions/invoices/audit); PLATFORM_SUPPORT seeded; AdminConsole role-aware (support reads via /platform, mutations + admin-only pages hidden); PlatformAuditLog getters added (was serializing id only); verified: reads 200, admin mutations 403",,verified
-REQ-040,Tenant auth + invites,,,,,verified
+REQ-040,Tenant auth + invites,,,"Password reset E2E: forgot-password -> outbox -> Mailpit link -> reset -> login new password 200, replay INVALID_TOKEN; invite accept E2E: client2 accepted -> role CLIENT -> token replay INVALID_INVITE 400",,verified
 REQ-041,Role dashboards,,,,,verified
 REQ-042,Quotation engine,,,,,verified
 REQ-043,Agreement generation,,,,,verified
 REQ-044,Project creation wizard,,,,,verified
-REQ-045,Site tracking,,,,,verified
+REQ-045,Site tracking,,,Site create without status -> 200 status=IN_PROGRESS (SiteService defaults null -> IN_PROGRESS; was 500 NULL-constraint). Fix verified in rebuilt image.,,verified
 REQ-046,Labor attendance/wages,,,,,verified
 REQ-047,Material estimator,,,,,verified
 REQ-048,Material tracking,,,,,verified
 REQ-049,Reports + CSV,,,,,verified
 REQ-050,Settings masters,,,,,verified
-REQ-051,Client portal,,,,,verified
+REQ-051,Client portal,,,"Client portal E2E: invite(client2,siteId)->accept->login sees exactly linked site (linkClientToSite implemented via SiteRepository; was empty stub). Role matrix: collections/expenses/reports/dashboard/kpis writes+reads 403. NEW SiteAccessGuard: CLIENT reads scoped to sites.client_user_id — foreign-site IDOR closed on sites/{id}, collections/site, stages, photos, change-requests, materials (all 403 vs db07cc44); own-site 200 + CR create 200. Staff-gated: users/masters/labor(wages)/settings GETs, settings PUT OWNER/ADMIN. /api/files/{id} resolves owning site via SitePhoto when present.",,verified
 REQ-052,Site photos,,,,,verified
 REQ-053,In-app notifications,,,,,verified
 REQ-054,Tenant branding,,,,,verified
