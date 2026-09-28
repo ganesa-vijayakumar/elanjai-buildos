@@ -101,8 +101,11 @@ landing image. It must never rebuild or restart the tenant app, admin app, or ba
 | Backend verification suite (04-quality/02) | Done — 24 tests (9 unit surefire + 15 failsafe IT) green under `mvn verify` (Java 25, Postgres 16) | `765c5ab` |
 | Frontend split into three workspace apps (01-architecture/02) | Done — `apps/landing`, `apps/tenant`, `apps/admin`, `packages/shared`; realm-scoped storage keys; `/login` directory + workspace guard | `a073f84`, `82e6ef0`, `eeaa9f5` |
 | Independent delivery (03-deployment/01) | Done — per-app Dockerfiles/nginx, `deploy/gateway.conf`, compose topology, path-scoped CI workflows | `64cfb36` |
-| `<local>@<slug>` username rollout (02-tenancy/01) | **Not started** — Phase B; backend login still accepts email only (the documented transition path) | — |
-| Durable/resumable provisioning, backups, digest promotion, SEO/observability | **Not started** — Phase B/C per the phase map | — |
+| `<local>@<slug>` username rollout (02-tenancy/01) | Done — V5 adds `users.username`; sign-in resolves email \| `<local>` \| `<local>@<slug>` with email-first precedence and suffix rejection; disjointness enforced at write time; per-tenant backfill job (`POST /api/admin/tenants/{id}/backfill-usernames`, `POST /api/admin/usernames/backfill-all`) is deterministic, collision-skipping, idempotent, audited | `db53a00`, `8ea1bd8` |
+| Tenant-track migration isolation (02-tenancy/02) | Done — `migrateAllTenants` returns a per-schema report; one failing schema no longer aborts the loop | below |
+| Backup pre-step (02-tenancy/02, 03-deployment/02) | Done — `deploy/scripts/backup-db.sh` dumps `public` + tenant schemas to a timestamped dir; required before destructive changes | below |
+| Durable operation table (02-tenancy/02, "only if justified") | **Not adopted** — basic probing idempotency + `retry-provisioning` cover resume between steps; documented decision, revisit if a provisioning step becomes expensive or externally visible audit is needed | — |
+| Digest promotion, SEO/observability | **Not started** — Phase B/C per the phase map | — |
 
 Verified end-to-end on `develop`: all four images build; `docker compose up`
 serves landing at apex/www, admin at `admin.<base>`, and the shared workspace at

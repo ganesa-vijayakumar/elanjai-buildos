@@ -38,8 +38,14 @@ public class DataInitializer {
     CommandLineRunner tenantMigrationsCatchUp(TenantSchemaProvisioner provisioner,
                                               @Value("${app.demo.seed:true}") boolean demoSeed) {
         return args -> {
-            int n = provisioner.migrateAllTenants();
-            if (n > 0) log.info("Tenant migration catch-up: {} schema(s) migrated", n);
+            var report = provisioner.migrateAllTenants();
+            if (report.succeeded() > 0) {
+                log.info("Tenant migration catch-up: {} schema(s) migrated", report.succeeded());
+            }
+            if (report.failedCount() > 0) {
+                log.error("Tenant migration catch-up failures ({}): {}",
+                        report.failedCount(), report.failed());
+            }
         };
     }
 

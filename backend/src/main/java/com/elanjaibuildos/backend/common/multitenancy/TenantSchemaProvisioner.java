@@ -130,19 +130,40 @@ public class TenantSchemaProvisioner {
         }
     }
 
-    /** Re-run tenant migrations on every existing tenant schema (boot-time catch-up). */
-    public int migrateAllTenants() {
-        int migrated = 0;
+    /** Per-tenant migration report — one schema's failure never blocks the others. */
+    public record MigrationReport(java.util.List<String> migrated,
+                                  java.util.Map<String, String> failed) {
+        public int succeeded() { return migrated.size(); }
+        public int failedCount() { return failed.size(); }
+    }
+
+    /**
+     * Re-run tenant migrations on every existing tenant schema (boot-time catch-up /
+     * tenant-track upgrades). Per-tenant failure isolation: a failing schema is
+     * recorded in the report and the loop continues — see
+     * Prody enhancements/02-tenancy/02 (E2, migrate-runner isolation).
+     */
+    public MigrationReport migrateAllTenants() {
+        java.util.List<String> slugs = new java.util.ArrayList<>();
         try (Connection c = dataSource.getConnection();
              Statement s = c.createStatement();
              ResultSet rs = s.executeQuery(
                      "SELECT slug FROM tenants WHERE schema_name IS NOT NULL AND status <> 'OFFBOARDED'")) {
-            java.util.List<String> slugs = new java.util.ArrayList<>();
             while (rs.next()) slugs.add(rs.getString(1));
-            for (String slug : slugs) { migrate(slug); migrated++; }
         } catch (Exception e) {
-            throw new IllegalStateException("Tenant migration catch-up failed", e);
+            throw new IllegalStateException("Tenant migration catch-up failed to list tenants", e);
         }
-        return migrated;
+        java.util.List<String> migrated = new java.util.ArrayList<>();
+        java.util.Map<String, String> failed = new java.util.LinkedHashMap<>();
+        for (String slug : slugs) {
+            try {
+                migrate(slug);
+                migrated.add(slug);
+            } catch (Exception e) {
+                failed.put(slug, e.getMessage());
+                log.error("Tenant migration failed for {}", slug, e);
+            }
+        }
+        return new MigrationReport(migrated, failed);
     }
 }
