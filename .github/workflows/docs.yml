@@ -1,0 +1,58 @@
+name: docs
+
+# Documentation-only pipeline — runs markdown hygiene checks for doc changes
+# and nothing else. Application pipelines do not trigger on doc paths.
+on:
+    push:
+        branches: [main, develop]
+        paths:
+            - '**.md'
+            - 'Prody enhancements/**'
+            - '.github/workflows/docs.yml'
+    pull_request:
+        paths:
+            - '**.md'
+            - 'Prody enhancements/**'
+            - '.github/workflows/docs.yml'
+
+jobs:
+    markdown:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Check relative markdown links resolve
+              run: |
+                  python3 - <<'PY'
+                  import os, re, sys
+                  bad, count = [], 0
+                  for root, dirs, files in os.walk('.'):
+                      dirs[:] = [d for d in dirs if d not in
+                                 ('.git', 'node_modules', 'dist', 'target', 'backups')]
+                      for f in files:
+                          if not f.endswith('.md'): continue
+                          count += 1
+                          p = os.path.join(root, f)
+                          text = open(p, encoding='utf-8', errors='ignore').read()
+                          for m in re.finditer(r'\]\(([^)#\s]+)', text):
+                              target = m.group(1)
+                              if re.match(r'https?://|mailto:|file:', target):
+                                  continue
+                              dest = os.path.normpath(os.path.join(
+                                  os.path.dirname(p), target.split('#')[0]))
+                              if not os.path.exists(dest):
+                                  bad.append(f"{p}: {target}")
+                  print(f"scanned {count} markdown files")
+                  if bad:
+                      print("Broken relative links:")
+                      print("\n".join(bad))
+                      sys.exit(1)
+                  print("All relative markdown links resolve.")
+                  PY
+
+            - name: Check markdown whitespace hygiene
+              # scoped to docs this project owns — legacy root docs are exempt
+              run: |
+                  ! grep -rln $' \t*$' --include='*.md' \
+                      "Prody enhancements" AGENTS.md README.md \
+                  || { echo "Trailing whitespace found in markdown files"; exit 1; }
